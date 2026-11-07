@@ -1,0 +1,36 @@
+---
+title: Ledger
+client: Fielder
+role: Founding engineer
+year: 2023
+featured: true
+summary: Double-entry accounting for a small business, built to be correct before it was pleasant. The pleasant part came second.
+stack: ['Go', 'Postgres', 'React', 'Stripe']
+metrics:
+  - value: $2.1M
+    label: Processed in year one
+  - value: '0'
+    label: Unbalanced entries
+  - value: 6wk
+    label: Concept to first customer
+---
+
+## Correctness as a feature
+
+Accounting has a truth condition: debits must equal credits, forever. I modelled
+that invariant in the database itself — a deferred constraint that rejects any
+transaction that does not balance — so no application bug, no matter how
+creative, can write a corrupt ledger.
+
+```sql
+ALTER TABLE postings
+  ADD CONSTRAINT balanced
+  CHECK (amount <> 0) DEFERRABLE INITIALLY DEFERRED;
+-- plus a per-transaction sum check enforced in the same deferred window
+```
+
+## What I would change
+
+I over-built the reporting layer for a company with three users. The chart-of-
+accounts UI took six weeks and the growth was slower than the button. Next time:
+ship the ledger and one honest report, and let the customer ask for the rest.

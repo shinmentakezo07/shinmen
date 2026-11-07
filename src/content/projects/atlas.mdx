@@ -1,0 +1,67 @@
+---
+title: Atlas
+client: Meridian Logistics
+role: Lead engineer, 4-person team
+year: 2025
+featured: true
+summary: A real-time dispatch board for 1,800 drivers, rebuilt from a spreadsheet and three cron jobs into a system that stays correct under load.
+stack: ['TypeScript', 'React', 'Go', 'Postgres', 'WebSockets', 'Temporal']
+metrics:
+  - value: 1,800
+    label: Drivers online
+  - value: 340ms
+    label: p95 dispatch latency
+  - value: '99.97%'
+    label: Uptime, 12 months
+---
+
+## The problem
+
+Meridian ran dispatch out of a 40-column spreadsheet synced to three cron jobs.
+A dispatcher's view of the fleet could be up to six minutes stale, and the
+"source of truth" for a driver's location was whichever cron job ran last. Every
+Monday, someone reconciled the spreadsheet by hand for two hours. They had hired
+before, twice, to fix it. Both attempts died because the old system could not be
+switched off while the new one was unproven.
+
+## What I changed first
+
+Not the UI. I spent the first three weeks writing down every rule that lived in
+someone's head — how a driver is considered "available", which order wins when
+two are close, what happens when a truck goes dark mid-route. That became a
+single state machine, documented and tested, before a line of screen code.
+
+<Aside label="Principle">
+The spreadsheet was not the problem. The undocumented rules inside it were.
+</Aside>
+
+## Architecture
+
+- **Event-sourced order state.** Every transition is an append-only row, so
+  "why did truck 114 get this job?" has an answer that does not depend on
+  reading logs at 2am.
+- **WebSocket fan-out with a read model per viewport.** Dispatch sees
+  contractions only for its region; we never push a full fleet snapshot.
+- **Idempotent assignment via Temporal.** The scary operation — assigning an
+  order — is a durable workflow with retries and a compensation path, so a
+  dropped connection cannot create two assignments.
+
+## Results
+
+Median dispatch moved from a manual ~4 minutes to 340ms at p95. The Monday
+reconciliation is gone. More important to Meridian: the state machine now lives
+outside anyone's head, so their next hire can read it.
+
+```go
+// Assignment is a closed transition — the event store rejects the second write.
+func (s *Store) Assign(ctx context.Context, orderID, driverID string) error {
+    return s.tx(ctx, func(tx *Tx) error {
+        cur, err := tx.LockOrder(ctx, orderID)
+        if err != nil { return err }
+        if cur.AssignedTo != "" {
+            return ErrAlreadyAssigned // surfaced to the retry policy, not the user
+        }
+        return tx.Append(ctx, OrderAssigned{orderID, driverID, tx.Now()})
+    })
+}
+```

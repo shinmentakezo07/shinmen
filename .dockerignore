@@ -1,0 +1,12 @@
+node_modules
+dist
+src/content/generated
+*.tsbuildinfo
+.git
+.gitignore
+.dockerignore
+Dockerfile*
+.env
+.env.*
+*.log
+.DS_Store

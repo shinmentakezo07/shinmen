@@ -1,0 +1,157 @@
+/*
+  Design tokens — the single source of truth for colour, type, space, and motion.
+  Nothing in the app should hardcode a hex value or a px font size; everything
+  reads from here; rationale lives with each token group.
+*/
+
+:root {
+  /* ── Type families ───────────────────────────────────────────────────── */
+  --font-display: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+  --font-body: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* ── Type scale (fluid, 1.25 minor third, clamped for small screens) ─── */
+  --step--2: clamp(0.66rem, 0.64rem + 0.1vw, 0.71rem);
+  --step--1: clamp(0.79rem, 0.76rem + 0.15vw, 0.89rem);
+  --step-0: clamp(0.95rem, 0.9rem + 0.25vw, 1.06rem);
+  --step-1: clamp(1.13rem, 1.04rem + 0.45vw, 1.33rem);
+  --step-2: clamp(1.35rem, 1.2rem + 0.75vw, 1.78rem);
+  --step-3: clamp(1.6rem, 1.36rem + 1.2vw, 2.37rem);
+  --step-4: clamp(1.9rem, 1.52rem + 1.9vw, 3.16rem);
+  --step-5: clamp(2.26rem, 1.66rem + 3vw, 4.21rem);
+  --step-6: clamp(2.68rem, 1.75rem + 4.65vw, 5.61rem);
+  --step-7: clamp(3.19rem, 1.75rem + 7.2vw, 7.48rem);
+
+  /* ── Spacing (4px base, geometric-ish) ───────────────────────────────── */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+  --space-10: 8rem;
+
+  /* ── Layout ──────────────────────────────────────────────────────────── */
+  --page-max: 1280px;
+  --gutter: clamp(1rem, 0.4rem + 3vw, 3rem);
+  --rule: 1px;
+
+  /* ── Motion ──────────────────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-1: 140ms;
+  --dur-2: 260ms;
+  --dur-3: 520ms;
+  --dur-4: 900ms;
+
+  /* ── Radii — deliberately near-zero. This is a spec sheet, not a pillow */
+  --radius-sm: 0px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+
+  /* ── Light theme: warm paper ─────────────────────────────────────────── */
+  --paper: #f4f1ea;
+  --paper-raised: #faf8f3;
+  --paper-sunk: #ebe7dd;
+  --ink: #16150f;
+  --ink-soft: #4a473d;
+  --ink-muted: #7a766a;
+  --rule-color: #d6d0c2;
+  --rule-strong: #b3ac9b;
+  --accent: #d9481f; /* vermilion */
+  --accent-ink: #fff8f4; /* text on accent */
+  --accent-quiet: rgba(217, 72, 31, 0.08);
+  --selection: rgba(217, 72, 31, 0.22);
+
+  /* ── Subject hues: one per tool in the belt, full chroma ─────────────── */
+  --hue-go: #0e7490;
+  --hue-rust: #c2410c;
+  --hue-python: #9a6700;
+  --hue-ts: #2563eb;
+  --hue-react: #7c3aed;
+  --hue-node: #15803d;
+  --hue-tailwind: #0f766e;
+  --hue-agent: #c026d3;
+
+  /* Semantic tones */
+  --success: #15803d;
+  --warning: #b45309;
+  --danger: #c81e1e;
+  --info: #2563eb;
+
+  /* Section accent — overridden per section for a hue shift while scrolling */
+  --section-accent: var(--accent);
+
+  /* Atmosphere */
+  --grain-opacity: 0.05;
+  --aurora-opacity: 0.55;
+
+  /* Semantic aliases the components actually consume */
+  --bg: var(--paper);
+  --bg-raised: var(--paper-raised);
+  --bg-sunk: var(--paper-sunk);
+  --fg: var(--ink);
+  --fg-soft: var(--ink-soft);
+  --fg-muted: var(--ink-muted);
+  --line: var(--rule-color);
+  --line-strong: var(--rule-strong);
+}
+
+/*
+  Dark mode is not an inversion. The paper becomes a warm charcoal that keeps
+  the printed quality, the vermilion is lifted in chroma and lightness so it
+  holds on dark ground, and rules get *lighter* than the background rather than
+  darker — the way ink on a spec sheet behaves.
+*/
+[data-theme='dark'] {
+  --paper: #12110f;
+  --paper-raised: #191814;
+  --paper-sunk: #0c0b09;
+  --ink: #f0ece1;
+  --ink-soft: #c2bdb0;
+  --ink-muted: #8a8578;
+  --rule-color: #2b2924;
+  --rule-strong: #423f37;
+  --accent: #ff6a3d;
+  --accent-ink: #1a0d08;
+  --accent-quiet: rgba(255, 106, 61, 0.12);
+  --selection: rgba(255, 106, 61, 0.28);
+
+  --hue-go: #33d6f2;
+  --hue-rust: #ff8a50;
+  --hue-python: #fbbf24;
+  --hue-ts: #7aa2ff;
+  --hue-react: #b18cff;
+  --hue-node: #4ade80;
+  --hue-tailwind: #2dd4bf;
+  --hue-agent: #e879f9;
+
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #ff6b6b;
+  --info: #7aa2ff;
+
+  --grain-opacity: 0.07;
+  --aurora-opacity: 0.9;
+
+  --bg: var(--paper);
+  --bg-raised: var(--paper-raised);
+  --bg-sunk: var(--paper-sunk);
+  --fg: var(--ink);
+  --fg-soft: var(--ink-soft);
+  --fg-muted: var(--ink-muted);
+  --line: var(--rule-color);
+  --line-strong: var(--rule-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0ms;
+    --dur-2: 0ms;
+    --dur-3: 0ms;
+    --dur-4: 0ms;
+  }
+}

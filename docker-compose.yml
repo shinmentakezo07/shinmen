@@ -1,0 +1,16 @@
+services:
+  app:
+    build:
+      context: .
+    ports:
+      - "8081:8080"
+    environment:
+      PORT: "8080"
+      PORTFOLIO_DIST: /srv/public
+      GITHUB_USER: ${GITHUB_USER:-roshankhatri}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      # Leave URL+KEY empty to run the chat endpoint in canned-answer mode.
+      CHAT_UPSTREAM_URL: ${CHAT_UPSTREAM_URL:-}
+      CHAT_UPSTREAM_KEY: ${CHAT_UPSTREAM_KEY:-}
+      CHAT_MODEL: ${CHAT_MODEL:-gpt-4o-mini}
+    restart: unless-stopped

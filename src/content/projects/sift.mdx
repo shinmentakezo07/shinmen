@@ -1,0 +1,41 @@
+---
+title: Sift
+client: Independent
+role: Design and engineering
+year: 2024
+featured: true
+summary: A local-first semantic search tool for research notes. Everything runs on-device; the index is a single file you can copy, diff, and delete.
+stack: ['Rust', 'WASM', 'React', 'SQLite', 'llama.cpp']
+metrics:
+  - value: '0'
+    label: Bytes sent to a server
+  - value: 42ms
+    label: Median query, 80k chunks
+  - value: 11MB
+    label: Core binary
+---
+
+## Why local-first
+
+I had notes in four apps and trusted none of them to stay alive. Sift is a bet
+that a personal search index should be a **file** — portable, versionable, and
+private by construction rather than by policy.
+
+## The shape
+
+A Rust core compiles the embedding model into WebAssembly for the browser build
+and links `llama.cpp` natively for the desktop build. The index is a SQLite file
+with a vector column and an FTS5 table; hybrid search runs both and re-ranks with
+reciprocal rank fusion.
+
+<Aside label="Trade-off">
+On-device embeddings are smaller and worse than a hosted 1.5B model. For my own
+notes, "good enough, instant, and mine" beat "better, slower, and theirs."
+</Aside>
+
+## What was hard
+
+Shipping a 30MB model to a browser tab without a Web Worker freezing the main
+thread. The indexing pass is chunked and cancellable; the UI stays live while a
+fresh import builds. Cold start on a cold cache is the honest weak spot — about
+2.4 seconds before the first result.
