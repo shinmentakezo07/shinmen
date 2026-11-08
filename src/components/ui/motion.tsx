@@ -59,17 +59,19 @@ export function Stagger({
 export function StaggerItem({
   children,
   className,
+  style,
   as = 'div',
 }: {
   children: React.ReactNode
   className?: string
+  style?: React.CSSProperties
   as?: 'div' | 'li'
 }) {
   const reduce = useReducedMotion()
   const Comp = m[as]
-  if (reduce) return <Comp className={className}>{children}</Comp>
+  if (reduce) return <Comp className={className} style={style}>{children}</Comp>
   return (
-    <Comp className={className} variants={item}>
+    <Comp className={className} style={style} variants={item}>
       {children}
     </Comp>
   )

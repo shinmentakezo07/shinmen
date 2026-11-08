@@ -221,6 +221,111 @@
     border: 0;
   }
 
+  /* Work-row metadata: visible on touch, progressive reveal on fine pointers.
+     Higher specificity than the base rule so hover/focus always wins. */
+  @media (hover: hover) and (pointer: fine) {
+    .work-meta {
+      opacity: 0;
+    }
+    .group:hover .work-meta,
+    .group:focus-visible .work-meta {
+      opacity: 1;
+    }
+  }
+
+  /* ── Selected work rows ────────────────────────────────────────────────
+     A spec-sheet table where each row carries its own subject hue in
+     --row-hue (set inline from projectHue). The wash, keyline, chip borders
+     and title underline all inherit it, so a row stays one coherent object
+     instead of a pile of accent colours. */
+  .work-list > li + li {
+    border-top: 1px solid var(--line);
+  }
+
+  .work-row {
+    background-color: transparent;
+    transition: background-color var(--dur-2) var(--ease-out);
+  }
+  .work-row:hover {
+    background-color: color-mix(in srgb, var(--row-hue) 4%, transparent);
+  }
+
+  /* Hue keyline in the left gutter: a tick beside the index at rest, full
+     row height on hover/focus. Anchored to the index line so it never reads
+     as an orphan mark at the top of the row. */
+  .work-keyline {
+    position: absolute;
+    left: 0;
+    top: 0.6rem;
+    width: 2px;
+    height: 0.85rem;
+    background: var(--row-hue);
+    transition:
+      height var(--dur-3) var(--ease-out),
+      background-color var(--dur-2) var(--ease-out);
+  }
+  .group:hover .work-keyline,
+  .group:focus-visible .work-keyline {
+    height: calc(100% - 1.2rem);
+  }
+
+  /* Title underline drawn left→right in the row hue */
+  .work-underline {
+    position: absolute;
+    left: 0;
+    bottom: -0.12em;
+    height: 1px;
+    width: 100%;
+    background: var(--row-hue);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--dur-3) var(--ease-out);
+  }
+  .group:hover .work-underline,
+  .group:focus-visible .work-underline {
+    transform: scaleX(1);
+  }
+
+  /* Stack token: hairline chip, hinting the palette without becoming badges */
+  .work-chip {
+    border: 1px solid var(--line);
+    padding: 0.05rem 0.4rem;
+    line-height: 1.5;
+    transition:
+      border-color var(--dur-2) var(--ease-out),
+      color var(--dur-2) var(--ease-out);
+  }
+  .group:hover .work-chip {
+    border-color: color-mix(in srgb, var(--row-hue) 35%, var(--line));
+  }
+
+  /* The arrow tile fills from the bottom in the row hue */
+  .work-swatch {
+    background: var(--row-hue);
+    transform: scaleY(0);
+    transform-origin: bottom;
+    transition: transform var(--dur-2) var(--ease-out);
+  }
+  .group:hover .work-swatch {
+    transform: scaleY(1);
+  }
+  .group:hover .work-swatch ~ svg {
+    color: var(--accent-ink);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .work-keyline,
+    .work-underline,
+    .work-chip,
+    .work-swatch,
+    .work-row {
+      transition: none;
+    }
+    .group:hover .work-keyline {
+      transform: none;
+    }
+  }
+
   /* A hairline that runs the whole subject palette */
   .spectrum-rule {
     height: 2px;
