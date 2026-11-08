@@ -17,25 +17,90 @@ metrics:
 
 ## Why local-first
 
-I had notes in four apps and trusted none of them to stay alive. Sift is a bet
-that a personal search index should be a **file** — portable, versionable, and
-private by construction rather than by policy.
+I had notes in four apps and trusted none of them to stay alive. Each one had an
+export, and each export lost structure. Sift is a bet that a personal search
+index should be a **file** — portable, versionable, private by construction
+rather than by policy.
+
+"Private by construction" is the part that matters: there is no account, no sync
+server, and no telemetry path to disable. The only reason the app has a network
+permission at all is downloading the model on first use, and that is a one-time,
+visible step.
 
 ## The shape
 
 A Rust core compiles the embedding model into WebAssembly for the browser build
-and links `llama.cpp` natively for the desktop build. The index is a SQLite file
-with a vector column and an FTS5 table; hybrid search runs both and re-ranks with
-reciprocal rank fusion.
+and links `llama.cpp` natively for the desktop build. Both expose the same
+interface, so the UI does not know which one it is talking to.
+
+```
+            ┌──────────────────────────────┐
+  notes ───▶│ chunker → embedder (gguf)    │
+            └──────────────┬───────────────┘
+                           ▼
+            ┌──────────────────────────────┐
+            │ index.sqlite                 │
+            │  vectors (BLOB, f32)         │
+            │  chunks_fts (FTS5)           │
+            │  meta (model, dims, version) │
+            └──────────────┬───────────────┘
+                           ▼
+              hybrid query → RRF → top-k
+```
+
+The index is a SQLite file with a vector column and an FTS5 table; hybrid search
+runs both and re-ranks with reciprocal rank fusion. Vectors are stored as packed
+`f32` blobs rather than a vector extension, because the extension is the one
+thing that does not survive being copied between a browser's OPFS and a desktop
+folder. Distance is a cosine scan in Rust over the candidate set.
 
 <Aside label="Trade-off">
 On-device embeddings are smaller and worse than a hosted 1.5B model. For my own
 notes, "good enough, instant, and mine" beat "better, slower, and theirs."
 </Aside>
 
+### Why hybrid, and why RRF
+
+Pure vector search is bad at the thing people actually type: an exact error
+string, a variable name, a surname. Pure keyword search is bad at everything
+else. Reciprocal rank fusion combines the two rankings without needing to
+calibrate their scores against each other, which matters because a cosine
+similarity and a BM25 score are not on the same scale and never will be.
+
+The cost is that fusion hides a failure: if the embedder is wrong about a
+document, the FTS5 arm still surfaces it, which makes the tool feel reliable in
+a way that a pure-vector system does not.
+
 ## What was hard
 
 Shipping a 30MB model to a browser tab without a Web Worker freezing the main
 thread. The indexing pass is chunked and cancellable; the UI stays live while a
-fresh import builds. Cold start on a cold cache is the honest weak spot — about
-2.4 seconds before the first result.
+fresh import builds, and a cancelled import leaves no partial index behind
+because the write is one transaction at the end.
+
+- **Cold start.** Genuinely the weak spot: about 2.4 seconds before the first
+  result on a cold cache, because the model has to be paged in. I tried
+  pre-warming on page load and reverted it — it made every visit pay for a search
+  a person might not run.
+- **Memory in WASM.** A 32-bit address space and an 80k-chunk index are not
+  comfortable neighbours. The embedding buffer is recycled per batch and the
+  index is memory-mapped, not loaded.
+- **Versioning the index.** The model version is stamped into the file. Open an
+  index built by a different embedder and the app refuses to search it rather
+  than return confident nonsense — the failure people would not notice.
+- **Diffing a binary.** "A file you can diff" needed a text export: the SQLite
+  file lands in git as an opaque blob, so the real answer was a companion
+  `.jsonl` of chunks that git can diff, with the index rebuilt locally.
+
+## Results
+
+Zero bytes sent to a server — not a policy setting, an architectural property.
+42ms median query across 80k chunks on a laptop, with the 11MB core binary
+excluding the model weights.
+
+## What I would change
+
+I would drop the desktop build before I dropped the file format. Maintaining two
+embedding backends (native `llama.cpp` and WASM) roughly doubled the surface
+area for a benefit most people would not notice; the file is the product, and
+the runtime is an implementation detail.

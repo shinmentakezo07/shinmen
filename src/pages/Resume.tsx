@@ -55,11 +55,11 @@ const HIGHLIGHT: Record<string, string[]> = {
 /** The second bullet per engagement — what the summary does not already say. */
 const BEATS: Record<string, string> = {
   atlas:
-    'Undocumented assignment rules became one tested state machine; idempotent assignment via Temporal ended double-assignment for good.',
+    'Event-sourced order state with per-viewport WebSocket deltas; Temporal workflow identity plus a locked read closed a double-assignment race the cron jobs had hidden for years.',
   sift:
-    'Rust core compiled to WASM, SQLite hybrid index with FTS5 plus vectors — the index is one file you can copy, diff, and delete.',
+    'Rust core to WASM with hybrid FTS5 + vector retrieval fused by reciprocal rank fusion; chunked, cancellable indexing keeps the main thread live.',
   ledger:
-    'Balance enforced by a deferred Postgres constraint, so no application bug can write an unbalanced transaction.',
+    'Deferred Postgres constraint makes an unbalanced transaction unrepresentable; idempotent payment intake keyed on the provider event id.',
 }
 
 const sectionHeading = 'font-mono text-[length:var(--step--1)] uppercase tracking-[0.14em] text-fg-muted'
@@ -292,10 +292,10 @@ export function Resume() {
                 <span className="index mr-2">01</span>Brief
               </h2>
               <p className="text-1 leading-relaxed text-fg-soft">
-                Seven years of hands-on work between the database and the browser, mostly
-                at small companies. I keep the systems small enough to reason about, spend
-                novelty on the problem rather than the plumbing, and hold every invariant
-                in a place that cannot be bypassed.
+                I work at the boundary between the database and the browser, usually at
+                small companies. I keep systems small enough to reason about, spend novelty
+                on the problem rather than the plumbing, and hold every invariant in a place
+                that cannot be bypassed.
               </p>
             </div>
           </section>

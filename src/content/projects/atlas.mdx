@@ -1,6 +1,6 @@
 ---
 title: Atlas
-client: Meridian Logistics
+client: Regional logistics operator
 role: Lead engineer, 4-person team
 year: 2025
 featured: true
@@ -17,40 +17,63 @@ metrics:
 
 ## The problem
 
-Meridian ran dispatch out of a 40-column spreadsheet synced to three cron jobs.
-A dispatcher's view of the fleet could be up to six minutes stale, and the
+Dispatch ran out of a 40-column spreadsheet synced to three cron jobs. A
+dispatcher's view of the fleet could be up to six minutes stale, and the
 "source of truth" for a driver's location was whichever cron job ran last. Every
-Monday, someone reconciled the spreadsheet by hand for two hours. They had hired
-before, twice, to fix it. Both attempts died because the old system could not be
-switched off while the new one was unproven.
+Monday, someone reconciled the spreadsheet by hand for two hours.
+
+They had hired before, twice. Both attempts died because the old system could
+not be switched off while the new one was unproven: any cutover had to keep
+running dispatch on the spreadsheet until the replacement had already proven
+itself. That constraint shaped everything below — it is why the work started
+with the rules, not the UI, and why the first release was a read-only mirror.
 
 ## What I changed first
 
 Not the UI. I spent the first three weeks writing down every rule that lived in
 someone's head — how a driver is considered "available", which order wins when
-two are close, what happens when a truck goes dark mid-route. That became a
-single state machine, documented and tested, before a line of screen code.
+two are close, what happens when a truck goes dark mid-route, whether a
+dispatcher's manual override outranks the ranking. That became a single state
+machine, documented and tested, before a line of screen code.
 
 <Aside label="Principle">
 The spreadsheet was not the problem. The undocumented rules inside it were.
 </Aside>
 
+The output of those three weeks was not a design document. It was a table of
+transitions with a test per row — around 60 by the end — which meant every
+argument about dispatch behaviour could be settled by pointing at a case rather
+than at someone's memory of last winter.
+
+### The rules that were actually load-bearing
+
+Three of them were invisible until we wrote them down:
+
+- **Availability is a promise, not a status.** A driver is "available" only if
+  their current assignment can finish before their shift ends, with a margin for
+  the return leg. Treating the flag literally had been double-booking drivers
+  nightly.
+- **Proximity loses to commitment.** When two drivers are close, the one already
+  heading in that direction wins, even if they are further away. The old cron
+  jobs ranked purely on straight-line distance, which sent drivers past each
+  other in opposite directions.
+- **A dark truck is not a free truck.** A truck that stops reporting is assumed
+  to be still on its assignment until a dispatcher says otherwise. The
+  spreadsheet assumed the opposite, because a stale row looked empty.
+
 ## Architecture
 
 - **Event-sourced order state.** Every transition is an append-only row, so
   "why did truck 114 get this job?" has an answer that does not depend on
-  reading logs at 2am.
+  reading logs at 2am. The read model is derived, never authoritative, so a
+  corrupt projection is rebuilt rather than repaired by hand.
 - **WebSocket fan-out with a read model per viewport.** Dispatch sees
-  contractions only for its region; we never push a full fleet snapshot.
+  contractions only for its region; we never push a full fleet snapshot. A
+  regional dispatcher subscribes to roughly 90 drivers, and the payload is a
+  delta — the client merges, the server never redraws the board.
 - **Idempotent assignment via Temporal.** The scary operation — assigning an
   order — is a durable workflow with retries and a compensation path, so a
   dropped connection cannot create two assignments.
-
-## Results
-
-Median dispatch moved from a manual ~4 minutes to 340ms at p95. The Monday
-reconciliation is gone. More important to Meridian: the state machine now lives
-outside anyone's head, so their next hire can read it.
 
 ```go
 // Assignment is a closed transition — the event store rejects the second write.
@@ -65,3 +88,72 @@ func (s *Store) Assign(ctx context.Context, orderID, driverID string) error {
     })
 }
 ```
+
+### Why event sourcing, and what it cost
+
+The obvious alternative was a mutable `orders` table with an audit log bolted
+on. It is simpler, and for most products I would have picked it. Two things
+ruled it out here:
+
+1. Dispatchers needed to answer "what did we know at 14:05 when we made this
+   call?" — not "what does this row say now". An audit table written after the
+   fact answers a different question.
+2. The reranking logic changed roughly monthly for the first half year. With
+   events, a new ranking can replay history and be compared against what
+   dispatchers actually did. With a mutable table, that comparison is gone.
+
+The cost is real and I would not hide it: every read is either a projection
+someone maintains or a replay, and there is exactly one person who can reason
+about the projections under load. That is a bus factor I created, and it is the
+main thing I would attach to this design if we did it again — a projection
+test that fails loudly rather than a comment explaining the invariant.
+
+### Rejected: pushing the whole fleet
+
+The first implementation sent the full fleet snapshot on every change, throttled
+to one message a second. At 1,800 drivers that is fine on a good connection and
+terrible on the 3G a depot office actually has; the board would freeze for
+seconds at a time and dispatchers stopped trusting it. Per-viewport deltas cost
+more server bookkeeping and cut the message from tens of kilobytes to a few
+hundred bytes.
+
+## What broke, and what changed
+
+- **The double-assignment race.** Two dispatchers hitting the same order within
+  the same 200ms window produced two assignments; the cron jobs had the same bug
+  and nobody had noticed because the reconciliation pass cleaned it up
+  afterwards. Temporal's workflow identity plus a locked read fixed it — and the
+  test that reproduces it runs on every commit now.
+- **Replay outran the projections.** An early version of the ranking replay ran
+  on a tablet in a depot and pushed the browser tab to a state where the board
+  was technically live but visually three minutes behind what the dispatcher had
+  done. The fix was not speed: projections now publish a sequence number and the
+  client refuses to apply an out-of-order delta.
+- **The state machine was right and the defaults were wrong.** For the first
+  week the system was correct and slower than the spreadsheet, because it
+  queued everything through the workflow instead of only the assignment step.
+  Correctness did not save it; dispatchers went back to the spreadsheet for
+  three days. Moving the durable execution boundary to just the assign
+  transition fixed it.
+
+## Results
+
+Median dispatch moved from a manual ~4 minutes to 340ms at p95. The Monday
+reconciliation is gone. More important to the client: the state machine now lives
+outside anyone's head, so their next hire can read it.
+
+Uptime held at 99.97% across 12 months, which includes two planned migrations
+and one Postgres failover that the board rode out without a reconnect.
+
+## What I would do differently
+
+- **Ship the read-only mirror first.** We did, eventually, and it is what made
+  the cutover possible. Starting there would have saved the three-day
+  spreadsheet relapse.
+- **Cut the read models in half.** Three of the five projections served one
+  screen each and could have been a single query. I built them because the
+  pattern was available, not because the screen needed them.
+- **Instrument dispatcher behaviour from day one.** The most useful data in the
+  whole engagement was how often dispatchers overrode the ranking. We only
+  started recording it in month two, which means the first month's tuning was
+  based on opinion.

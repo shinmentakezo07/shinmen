@@ -1,6 +1,6 @@
 ---
 title: Ledger
-client: Fielder
+client: Small-business finance team
 role: Founding engineer
 year: 2023
 featured: true
@@ -17,10 +17,13 @@ metrics:
 
 ## Correctness as a feature
 
-Accounting has a truth condition: debits must equal credits, forever. I modelled
-that invariant in the database itself — a deferred constraint that rejects any
-transaction that does not balance — so no application bug, no matter how
-creative, can write a corrupt ledger.
+Accounting has a truth condition: debits must equal credits, forever. Most
+systems enforce that in application code, where a bug — a retried request, a
+half-applied batch, a developer who assumed the sign — can write a corrupt
+ledger and nobody notices until a close.
+
+I modelled the invariant in the database itself, so no application bug, no
+matter how creative, can write a corrupt ledger.
 
 ```sql
 ALTER TABLE postings
@@ -29,8 +32,72 @@ ALTER TABLE postings
 -- plus a per-transaction sum check enforced in the same deferred window
 ```
 
+Deferred, not immediate, because a transaction is written in several statements:
+the debit, the credit, and the fee rows land one at a time. The constraint fires
+at commit, when the whole set exists. That single word `DEFERRABLE` is the
+difference between an invariant and a roadblock.
+
+### The half that SQL cannot check
+
+A deferred constraint proves each transaction balances. It cannot prove that
+postings land in the right accounts — that is a semantic question. So the ledger
+layer is a small, boring function that takes a business event and returns the
+postings it implies, and every write goes through it. There is no code path that
+inserts a posting directly.
+
+<Aside label="Trade-off">
+Holding the lock until commit means a long batch serialises against every other
+write. For three users that is a feature, not a cost: reconciliation can never
+race a payment.
+</Aside>
+
+## Shape of the thing
+
+- **Immutable postings.** Nothing is updated or deleted; a correction is a new
+  transaction that reverses the old one. The account balance is a `SUM`, not a
+  stored column, so there is no denormalised number to drift.
+- **Idempotent payment intake.** Stripe webhooks retry. Every event carries its
+  provider id, and a unique constraint on `(provider, provider_event_id)` makes
+  a duplicate delivery a no-op instead of a double charge.
+- **Two-stage close.** The period closes at month end, but accounts stay open
+  for adjustments for a further fortnight behind an explicit reversal, so the
+  numbers people reported do not silently change.
+
+## What was hard
+
+**The invariant that looked obvious and wasn't.** Currencies. A cross-currency
+Journal entry does not balance in every denomination — it balances in the base
+currency at a specific rate. The first design checked the sum of raw amounts,
+which passed every test in a single-currency fixture and failed the first time
+the customer invoiced a client in USD. The constraint now sums the base-currency
+amount, and the rate used is stored per posting rather than looked up at read
+time, because a historical report has to use the rate from that day.
+
+**Reconciliation against the bank.** The bank's export and the ledger disagree
+constantly, for legitimate reasons: pending payments, fees applied late, a
+customer paying two invoices with one transfer. I built a matching screen that
+proposes candidates and requires a human to confirm. The version I wanted to
+build — automatic matching with a confidence score — was wrong here: the
+reconciliation was the control, and automating it removed the one place a human
+looked at every movement.
+
+**Time.** Postings are dated, not timestamped, and the date is the business day
+in the account's timezone. Two days of debugging went into an invoice dated
+23:58 UTC that belonged to the previous day locally and broke the close.
+
+## Results
+
+$2.1M processed in year one with zero unbalanced entries — a constraint check
+that never fired because the design made the bad write unrepresentable rather
+than merely unlikely. Six weeks from concept to first customer, invoicing on day
+one, because the bookkeeping model was the whole product.
+
 ## What I would change
 
 I over-built the reporting layer for a company with three users. The chart-of-
 accounts UI took six weeks and the growth was slower than the button. Next time:
 ship the ledger and one honest report, and let the customer ask for the rest.
+
+I would also have written the reversal path in week one. It is the operation that
+makes the immutable model humane, and retrofitting it meant auditing every place
+I had reached for an update.

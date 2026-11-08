@@ -43,9 +43,21 @@ const PRINCIPLES = [
 ] as const
 
 const BOUNDARIES = [
-  ['Schema and API', 'what the data allows'],
-  ['Render and routing', 'what the person sees'],
-  ['Tests and review', 'what actually ships'],
+  [
+    'Schema and API',
+    'what the data allows',
+    'Constraints the database enforces, shapes the API cannot return, and the one function every write goes through.',
+  ],
+  [
+    'Render and routing',
+    'what the person sees',
+    'Typed boundaries from response to component, loading and degraded states designed rather than defaulted.',
+  ],
+  [
+    'Tests and review',
+    'what actually ships',
+    'A test per invariant, a gate every change passes, and a human reading the diff before it lands.',
+  ],
 ] as const
 
 function relative(iso: string) {
@@ -151,9 +163,10 @@ export function About() {
 
           <div className="mt-6 grid gap-5 text-0 leading-relaxed text-fg-soft sm:grid-cols-2 sm:gap-8">
             <p>
-              Seven years between the database and the browser, mostly at small
-              companies where the same person designs the schema and argues about
-              kerning. I like that range more than any specialty inside it.
+              I work at the boundary between the database and the browser —
+              usually at small companies where the same person designs the schema
+              and argues about kerning. I like that range more than any specialty
+              inside it.
             </p>
             <p>
               My work tends toward consequences: ledgers that cannot be
@@ -165,7 +178,7 @@ export function About() {
 
           {/* Boundary ledger: the range, stated as three owned seams */}
           <ol className="mt-9 grid grid-cols-1 border-y border-line sm:grid-cols-3">
-            {BOUNDARIES.map(([title, note], i) => (
+            {BOUNDARIES.map(([title, note, detail], i) => (
               <li
                 key={title}
                 className={
@@ -175,7 +188,8 @@ export function About() {
               >
                 <span className="label text-[0.55rem]">seam {String(i + 1).padStart(2, '0')}</span>
                 <span className="font-mono text-[length:var(--step--1)] text-fg">{title}</span>
-                <span className="text-[0.7rem] leading-snug text-fg-muted">{note}</span>
+                <span className="label text-[0.5rem]">{note}</span>
+                <span className="mt-1 text-[0.7rem] leading-snug text-fg-muted">{detail}</span>
               </li>
             ))}
           </ol>

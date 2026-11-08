@@ -99,7 +99,7 @@ export function Hero() {
               {[
                 ['Based', 'Kathmandu → Remote'],
                 ['Focus', 'Backend & systems'],
-                ['Years', '7+'],
+                ['Stack', 'Go · Rust · TS'],
               ].map(([k, v]) => (
                 <div key={k}>
                   <dt className="label mb-1">{k}</dt>
