@@ -326,6 +326,121 @@
     }
   }
 
+  /* ── Résumé ────────────────────────────────────────────────────────────
+     Everything here is scoped to the résumé page and inherits its own hue
+     from --entry-hue / --chip-hue / --section-accent so a block reads as
+     one object. Motion is hover-only; nothing loops. */
+
+  /* Reading rail: the tick beside the active section stretches out of the
+     spine, the label steps up to the ink. */
+  .resume-rail-tick {
+    background: var(--line);
+    transition:
+      width var(--dur-3) var(--ease-out),
+      background-color var(--dur-2) var(--ease-out);
+  }
+  .resume-rail-tick[data-on='true'] {
+    background: var(--accent);
+  }
+  .resume-rail-link {
+    color: var(--fg-muted);
+    opacity: 0.65;
+  }
+  .resume-rail-link:hover,
+  .resume-rail-link[data-on='true'] {
+    color: var(--fg);
+    opacity: 1;
+  }
+  .resume-rail-num {
+    color: var(--fg-muted);
+    transition: color var(--dur-2) var(--ease-out);
+  }
+  .resume-rail-link[data-on='true'] .resume-rail-num {
+    color: var(--accent);
+  }
+
+  /* Hairline chips that answer the entry hue on hover of the entry */
+  .resume-chip {
+    border: 1px solid var(--line);
+    color: var(--fg-soft);
+    transition:
+      border-color var(--dur-2) var(--ease-out),
+      color var(--dur-2) var(--ease-out);
+  }
+  .group:hover .resume-chip {
+    border-color: color-mix(in srgb, var(--chip-hue, var(--entry-hue)) 40%, var(--line));
+    color: var(--fg);
+  }
+
+  /* Engagement entry: a wash from the left hue edge, and a rule that draws */
+  .resume-entry {
+    position: relative;
+    background-color: transparent;
+    transition: background-color var(--dur-2) var(--ease-out);
+  }
+  .resume-entry::before {
+    content: '';
+    position: absolute;
+    left: calc(var(--gutter) * -0.5);
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--entry-hue);
+    transform: scaleY(0);
+    transform-origin: top;
+    transition: transform var(--dur-3) var(--ease-out);
+  }
+  .resume-entry:hover {
+    background-color: color-mix(in srgb, var(--entry-hue) 3%, transparent);
+  }
+  .resume-entry:hover::before {
+    transform: scaleY(1);
+  }
+  .resume-tick {
+    transition: width var(--dur-3) var(--ease-out);
+  }
+  .resume-entry:hover .resume-tick {
+    width: 2rem;
+  }
+
+  /* Metric callout inside bullet copy — an underline, not a highlighter */
+  .resume-mark {
+    background: none;
+    color: var(--fg);
+    font-weight: 500;
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--entry-hue) 55%, transparent);
+    padding-bottom: 1px;
+  }
+
+  /* Spec board: recessed panel so it reads as an instrument, not a card */
+  .resume-spec {
+    border: 1px solid var(--line);
+    background: var(--bg-sunk);
+  }
+
+  /* Papertrail: three headline figures, divided by hairlines */
+  .resume-papertrail > div {
+    transition: background-color var(--dur-2) var(--ease-out);
+  }
+  .resume-papertrail > div:hover {
+    background: var(--bg-raised);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .resume-rail-tick,
+    .resume-rail-link,
+    .resume-chip,
+    .resume-entry,
+    .resume-entry::before,
+    .resume-tick,
+    .resume-papertrail > div {
+      transition: none;
+    }
+    .resume-entry:hover::before {
+      transform: scaleY(1);
+    }
+  }
+
   /* A hairline that runs the whole subject palette */
   .spectrum-rule {
     height: 2px;
@@ -484,6 +599,27 @@
 }
 
 @media print {
+  /* A résumé is an export first: each engagement is one unbreakable block,
+     its metric strip stays with its heading, and the reading rail is chrome. */
+  .resume-entry,
+  .resume-entry > div > div,
+  .resume-entry dl {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .resume-papertrail,
+  .resume-spec {
+    break-inside: avoid;
+  }
+  .resume-mark {
+    box-shadow: none;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .resume-chip {
+    border-color: var(--line-strong);
+  }
+
   header,
   footer,
   .grain,
