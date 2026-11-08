@@ -33,9 +33,30 @@ const AGENT_WORKFLOW = [
 ] as const
 
 const CRAFT = [
-  ['Correctness first', 'A smaller system that holds its invariants beats a larger one that mostly does.'],
-  ['Boring where it counts', 'Postgres, queues, typed boundaries. Novelty is spent on the problem, not the plumbing.'],
-  ['Interfaces explain themselves', 'If the UI needs a tutorial, the model behind it is probably wrong.'],
+  [
+    'Correctness first',
+    'A smaller system that holds its invariants beats a larger one that mostly does.',
+    'State the invariant before the feature, then put it where it cannot be bypassed — a database constraint, not a code review habit.',
+    'deferred constraint over application check',
+  ],
+  [
+    'Boring where it counts',
+    'Postgres, queues, typed boundaries. Novelty is spent on the problem, not the plumbing.',
+    'Every new dependency has to beat the boring option already running in production, and I write down why.',
+    'fewer moving parts over newer ones',
+  ],
+  [
+    'Interfaces explain themselves',
+    'If the UI needs a tutorial, the model behind it is probably wrong.',
+    'I test an interface by handing it to someone who has not read the schema, and watch where they hesitate.',
+    'legible surface over clever surface',
+  ],
+  [
+    'Review is the leverage',
+    'Agents write more of the code every year. Judgement about what is correct stays with the person reading the diff.',
+    'Spec first, tests as the gate, every diff read before it lands. Delegation is only as good as the review behind it.',
+    'one reviewed diff, not N merged ones',
+  ],
 ] as const
 
 const SECTIONS = [
@@ -108,6 +129,21 @@ function Rail({ active }: { active: number }) {
         </p>
       </div>
     </aside>
+  )
+}
+
+/* ── Masthead mark: initials in a spec-sheet tile, print-safe ─────────── */
+
+function MastheadMark() {
+  return (
+    <div
+      className="resume-mark-tile relative hidden size-[4.5rem] shrink-0 items-center justify-center border border-line-strong bg-bg-raised sm:flex"
+      aria-hidden
+    >
+      <span className="font-display text-3 leading-none text-fg">RK</span>
+      <span className="resume-mark-corner absolute left-0 top-0 h-3 w-3 border-b border-r border-accent" aria-hidden />
+      <span className="resume-mark-corner absolute bottom-0 right-0 h-3 w-3 border-l border-t border-accent" aria-hidden />
+    </div>
   )
 }
 
@@ -240,11 +276,19 @@ export function Resume() {
               <p className="label text-[0.62rem]">Updated Nov 2026</p>
             </div>
 
-            <h1 className="mt-4 text-6">Roshan Khatri</h1>
+            <div className="mt-4 flex items-start gap-6">
+              <MastheadMark />
+              <div className="min-w-0 flex-1">
+                <h1 className="text-6">Roshan Khatri</h1>
+                <p className="mt-2 font-mono text-[length:var(--step--1)] uppercase tracking-[0.14em] text-fg-muted">
+                  Software engineer · backend-heavy full-stack
+                </p>
+              </div>
+            </div>
 
-            <p className="mt-4 max-w-[54ch] text-1 leading-relaxed text-fg-soft">
-              Backend-heavy full-stack engineer. Correct systems underneath, interfaces
-              that explain themselves on top, AI agents in the loop with every diff reviewed.
+            <p className="mt-5 max-w-[54ch] text-1 leading-relaxed text-fg-soft">
+              Correct systems underneath, interfaces that explain themselves on top,
+              AI agents in the loop with every diff reviewed.
             </p>
 
             <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-2 font-mono text-[length:var(--step--1)] text-fg-muted">
@@ -255,7 +299,16 @@ export function Resume() {
               </div>
               <div className="flex gap-2">
                 <dt className="sr-only">GitHub</dt>
-                <dd>github.com/roshankhatri</dd>
+                <dd>
+                  <a
+                    href="https://github.com/roshankhatri"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="u-link hover:text-accent"
+                  >
+                    github.com/roshankhatri
+                  </a>
+                </dd>
               </div>
             </dl>
 
@@ -481,13 +534,22 @@ export function Resume() {
                 <span className="index mr-2">04</span>Method
               </h2>
               <ul className="space-y-5">
-                {CRAFT.map(([title, body], i) => (
-                  <li key={title} className="grid grid-cols-[1.5rem_1fr] gap-4">
+                {CRAFT.map(([title, body, rule, code], i) => (
+                  <li
+                    key={title}
+                    className="resume-craft grid gap-x-4 gap-y-1.5 border-t border-line pt-4 first:border-t-0 first:pt-0 sm:grid-cols-[1.5rem_minmax(0,1fr)_11rem]"
+                  >
                     <span className="index pt-0.5 tabular">{String(i + 1).padStart(2, '0')}</span>
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="font-mono text-0 uppercase tracking-[0.06em] text-fg">{title}</h3>
-                      <p className="mt-1 text-0 leading-relaxed text-fg-muted">{body}</p>
+                      <p className="mt-1 text-0 leading-relaxed text-fg-soft">{body}</p>
+                      <p className="mt-1.5 max-w-[46ch] text-[length:var(--step--1)] leading-snug text-fg-muted">
+                        {rule}
+                      </p>
                     </div>
+                    <span className="col-start-2 font-mono text-[0.6rem] leading-snug text-fg-muted sm:col-start-3 sm:border-l sm:border-line sm:pl-3 sm:self-center">
+                      {code}
+                    </span>
                   </li>
                 ))}
               </ul>

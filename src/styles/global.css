@@ -331,6 +331,26 @@
      from --entry-hue / --chip-hue / --section-accent so a block reads as
      one object. Motion is hover-only; nothing loops. */
 
+  /* Masthead identity tile: corners mark the frame, the whole square answers
+     the pointer — a name plate, not an avatar. */
+  .resume-mark-tile {
+    transition: border-color var(--dur-2) var(--ease-out);
+  }
+  .resume-mark-tile:hover {
+    border-color: var(--accent);
+  }
+  .resume-mark-corner {
+    transition: transform var(--dur-3) var(--ease-out);
+  }
+  .resume-mark-tile:hover .resume-mark-corner {
+    transform: scale(1.35);
+  }
+  @media print {
+    .resume-mark-tile {
+      border-color: var(--line-strong);
+    }
+  }
+
   /* Reading rail: the tick beside the active section stretches out of the
      spine, the label steps up to the ink. */
   .resume-rail-tick {
@@ -712,7 +732,8 @@
      its metric strip stays with its heading, and the reading rail is chrome. */
   .resume-entry,
   .resume-entry > div > div,
-  .resume-entry dl {
+  .resume-entry dl,
+  .resume-craft {
     break-inside: avoid;
     page-break-inside: avoid;
   }
