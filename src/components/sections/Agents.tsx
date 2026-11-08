@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useReducer, useRef, useState, type CSSProperties } from 'react'
 import { CornerDownLeft, LoaderCircle } from 'lucide-react'
 import { sendChat } from '@/lib/api'
 import { SectionHead } from './SectionHead'
 import { useReducedMotion } from 'motion/react'
 import { cn } from '@/lib/utils'
+import { useTransitionState } from '@/lib/machine'
 
 /*
   A small, honest assistant. It is a proxy to a model with a system prompt about
@@ -14,6 +15,22 @@ import { cn } from '@/lib/utils'
   an answer took (live model vs canned), each turn carries a provenance stamp,
   and canned answers arrive as ghost-typed text so the fallback reads as a
   fallback rather than a lie.
+
+  ── The transcript machine ─────────────────────────────────────────────────
+  The console's status is a small state machine, and it used to be implicit:
+
+      idle ──submit──▶ pending
+      pending ──reply──▶ idle (live if the newest answer is live, else canned)
+      pending ──fail──▶ error ──retry──▶ pending
+      pending ──abort──▶ idle            (browser fires 'abort' on timeout)
+
+  What the implicit version could not express was the error channel: the row is
+  genuinely a third visible state (the failure strip), so it now has a seat at
+  the table. Every visual mode the header strip can show is one state.
+
+  The pending → idle transition is *asynchronous*: dispatch happens when the
+  fetch resolves, and the event carries the outcome, so the transition table is
+  still pure. Reveal progress for canned answers stays in its own effect.
 */
 
 interface Turn {
@@ -23,11 +40,39 @@ interface Turn {
   degraded?: boolean
 }
 
-const SUGGESTIONS = [
-  { q: 'What is Roshan working on now?', intent: 'current' },
-  { q: 'Show me the most technically interesting project.', intent: 'projects' },
-  { q: 'Is he available for freelance work?', intent: 'availability' },
-]
+export type AgentStatus = 'idle' | 'pending' | 'live' | 'canned' | 'error'
+
+interface AgentState {
+  status: AgentStatus
+}
+
+type AgentEvent =
+  | { type: 'submit' }
+  | { type: 'reply'; degraded: boolean }
+  | { type: 'fail' }
+  | { type: 'retry' }
+  | { type: 'abort' }
+
+export function agentReducer(state: AgentState, event: AgentEvent): AgentState {
+  switch (event.type) {
+    case 'submit':
+      return state.status === 'pending' ? state : { status: 'pending' }
+    case 'reply':
+      return state.status === 'pending'
+        ? { status: event.degraded ? 'canned' : 'live' }
+        : state
+    case 'fail':
+      return state.status === 'pending' ? { status: 'error' } : state
+    case 'retry':
+      return state.status === 'error' ? { status: 'pending' } : state
+    case 'abort':
+      return state.status === 'pending' ? { ...state, status: 'idle' } : state
+    default: {
+      const unhandled: never = event
+      return unhandled
+    }
+  }
+}
 
 /** Typed rate for a canned answer, in ms per tick of two runes. */
 const TYPE_MS = 9
@@ -35,11 +80,11 @@ const TYPE_MS = 9
 /**
  * Reveals canned text as though it were arriving from a model, so the fallback
  * reads as a fallback. Runs once per answer; reduced motion gets it whole.
+ * The parent's setter is stable (a transition dispatch, not a fresh closure),
+ * so a re-render cannot tear down and restart the interval mid-answer.
  */
 function CannedAnswer({ text, onProgress }: { text: string; onProgress: (n: number) => void }) {
   const reduce = useReducedMotion()
-  // The parent's setter is stable state, not an event: hold it in a ref so a new
-  // closure each render cannot tear down and restart the interval mid-answer.
   const report = useRef(onProgress)
   report.current = onProgress
 
@@ -61,46 +106,81 @@ function CannedAnswer({ text, onProgress }: { text: string; onProgress: (n: numb
   return null
 }
 
+const SUGGESTIONS = [
+  { q: 'What is Roshan working on now?', intent: 'current' },
+  { q: 'Show me the most technically interesting project.', intent: 'projects' },
+  { q: 'Is he available for freelance work?', intent: 'availability' },
+]
+
+
 export function Agents() {
   const [turns, setTurns] = useState<Turn[]>([])
   const [input, setInput] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [typed, setTyped] = useState<Record<number, number>>({})
+  const [machine, dispatch] = useTransitionState<AgentState, AgentEvent>(
+    { status: 'idle' },
+    agentReducer,
+  )
+  const typed = useRef(new Map<number, number>())
+  // Reveal progress lives in a ref (one map, no per-tick object churn); this
+  // counter is what makes a tick visible to React.
+  const [, bumpReveal] = useReducer((n: number) => n + 1, 0)
   const inputRef = useRef<HTMLInputElement>(null)
   const logRef = useRef<HTMLDivElement>(null)
   const nextId = useRef(0)
+  const controller = useRef<AbortController | null>(null)
+  const lastAsked = useRef('')
 
-  async function submit(text: string) {
-    const q = text.trim()
-    if (!q || busy) return
-    const userTurn: Turn = { id: nextId.current++, role: 'user', text: q }
-    setTurns((t) => [...t, userTurn])
-    setInput('')
-    setBusy(true)
-    setError(null)
+  const status = machine.status
+  const busy = status === 'pending'
+
+  // An in-flight request outlives the section if the visitor scrolls away or
+  // navigates; canceling on unmount stops the reply from landing nowhere.
+  useEffect(() => () => controller.current?.abort(), [])
+
+  async function ask(q: string) {
+    controller.current?.abort()
+    const ac = new AbortController()
+    controller.current = ac
+    lastAsked.current = q
     try {
-      const res = await sendChat(q)
-      setTurns((t) => [
-        ...t,
-        { id: nextId.current++, role: 'assistant', text: res.reply, degraded: res.degraded },
-      ])
-    } catch {
-      setError('The assistant endpoint is not responding. The rest of the site is unaffected.')
+      const res = await sendChat(q, ac.signal)
+      const id = nextId.current++
+      setTurns((t) => [...t, { id, role: 'assistant', text: res.reply, degraded: res.degraded }])
+      dispatch({ type: 'reply', degraded: Boolean(res.degraded) })
+    } catch (err) {
+      // A browser timeout surfaces as an AbortError, not a server failure —
+      // say what actually happened instead of blaming the endpoint.
+      if (ac.signal.aborted) dispatch({ type: 'abort' })
+      else dispatch({ type: 'fail' })
     } finally {
-      setBusy(false)
+      if (controller.current === ac) controller.current = null
       inputRef.current?.focus()
     }
+  }
+
+  function submit(text: string) {
+    const q = text.trim()
+    if (!q || busy) return
+    lastAsked.current = q
+    setTurns((t) => [...t, { id: nextId.current++, role: 'user', text: q }])
+    setInput('')
+    dispatch({ type: 'submit' })
+    void ask(q)
+  }
+
+  function retry() {
+    if (status !== 'error' || !lastAsked.current) return
+    dispatch({ type: 'retry' })
+    void ask(lastAsked.current)
   }
 
   // Keep the newest turn in view without scrolling the page.
   useEffect(() => {
     const el = logRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [turns, busy])
+  }, [turns, status])
 
-  const lastAssistant = [...turns].reverse().find((t) => t.role === 'assistant')
-  const mode = busy ? 'pending' : lastAssistant ? (lastAssistant.degraded ? 'canned' : 'live') : 'idle'
+  const mode = status
 
   return (
     <section
@@ -193,6 +273,7 @@ export function Agents() {
               {mode === 'pending' && 'generating…'}
               {mode === 'live' && 'live model'}
               {mode === 'canned' && 'canned fallback'}
+              {mode === 'error' && 'endpoint unreachable'}
             </span>
           </div>
 
@@ -249,12 +330,14 @@ export function Agents() {
                           t.degraded ? 'text-fg-soft' : 'text-fg',
                         )}
                       >
-                        {t.degraded && typed[t.id] !== undefined
-                          ? t.text.slice(0, typed[t.id])
+                        {t.degraded && typed.current.get(t.id) !== undefined
+                          ? t.text.slice(0, typed.current.get(t.id))
                           : t.text}
-                        {t.degraded && typed[t.id] !== undefined && typed[t.id] < t.text.length && (
-                          <span className="resume-caret" aria-hidden />
-                        )}
+                        {t.degraded &&
+                          typed.current.get(t.id) !== undefined &&
+                          typed.current.get(t.id)! < t.text.length && (
+                            <span className="resume-caret" aria-hidden />
+                          )}
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                         <span className="label text-[0.5rem]">
@@ -270,7 +353,11 @@ export function Agents() {
                   {t.degraded && (
                     <CannedAnswer
                       text={t.text}
-                      onProgress={(n) => setTyped((m) => (m[t.id] === n ? m : { ...m, [t.id]: n }))}
+                      onProgress={(n) => {
+                        if (typed.current.get(t.id) === n) return
+                        typed.current.set(t.id, n)
+                        bumpReveal() // one re-render per revealed tick step
+                      }}
                     />
                   )}
                 </div>
@@ -283,10 +370,23 @@ export function Agents() {
                 <LoaderCircle className="size-3.5 animate-spin text-fg-muted" aria-label="Thinking" />
               </div>
             )}
-            {error && (
-              <p className="border-l-2 border-accent pl-3 text-[length:var(--step--1)] text-accent">
-                {error}
-              </p>
+            {status === 'error' && (
+              <div
+                role="alert"
+                className="border-l-2 border-accent pl-3 text-[length:var(--step--1)] text-accent"
+              >
+                <p>
+                  The assistant endpoint is not responding. The rest of the site is
+                  unaffected.
+                </p>
+                <button
+                  type="button"
+                  onClick={retry}
+                  className="label mt-1.5 text-[0.55rem] underline underline-offset-2 hover:text-fg"
+                >
+                  Retry the last question
+                </button>
+              </div>
             )}
           </div>
 

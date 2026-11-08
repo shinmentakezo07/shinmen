@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useCallback } from 'react'
 import { Command } from 'cmdk'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -12,7 +12,9 @@ import {
   Terminal,
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { useTransientFlag } from '@/lib/machine'
 import { useTheme } from '@/lib/theme'
+import { useCommandShortcut } from '@/lib/use-command-shortcut'
 import { projects } from '@/lib/projects'
 
 const nav = [
@@ -29,13 +31,37 @@ const itemClass =
 export function CommandMenu({
   open,
   onOpenChange,
+  onFirstKey,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
+  /** Mounted-late case: the chunk is lazy, so the first ⌘K may arrive after mount. */
+  onFirstKey?: () => void
 }) {
   const navigate = useNavigate()
-  const { theme, toggle } = useTheme()
-  const [copied, setCopied] = useState(false)
+  const { theme, source, toggle, reset } = useTheme()
+  // The palette closes on select, so "Copied" is the next time it opens —
+  // a 1.6s hold is enough to survive the close animation, brief enough to
+  // not greet you with a stale confirmation.
+  const copy = useTransientFlag<'email'>(1600)
+
+  // ⌘K is this component's key — open when closed, close when open, and while
+  // the chunk was loading it may never have seen the first press.
+  const onKey = useCallback(() => {
+    if (open) onOpenChange(false)
+    else (onFirstKey ?? (() => onOpenChange(true)))()
+  }, [open, onOpenChange, onFirstKey])
+  useCommandShortcut(onKey)
+
+  // Prevent the page behind the dialog from scrolling while it is open.
+  useEffect(() => {
+    if (!open) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [open])
 
   const run = (fn: () => void) => {
     onOpenChange(false)
@@ -108,7 +134,22 @@ export function CommandMenu({
               >
                 {theme === 'light' ? <Moon aria-hidden /> : <Sun aria-hidden />}
                 Toggle appearance
+                {source === 'user' && (
+                  <span className="label ml-auto text-[0.55rem] text-fg-muted">pinned</span>
+                )}
               </Command.Item>
+              {/* Only meaningful once a choice is pinned; otherwise invisible. */}
+              {source === 'user' && (
+                <Command.Item
+                  value="follow system appearance automatic mode os"
+                  keywords={['system', 'auto', 'automatic', 'appearance', 'theme']}
+                  className={itemClass}
+                  onSelect={() => run(reset)}
+                >
+                  <Moon aria-hidden className="opacity-60" />
+                  Follow system appearance
+                </Command.Item>
+              )}
               <Command.Item
                 value="Résumé"
                 keywords={['resume', 'cv', 'experience', 'printable', 'pdf']}
@@ -122,19 +163,15 @@ export function CommandMenu({
                 value="copy email address contact"
                 className={itemClass}
                 onSelect={() =>
-                  run(async () => {
-                    try {
-                      await navigator.clipboard.writeText('hello@roshankhatri.dev')
-                      setCopied(true)
-                      setTimeout(() => setCopied(false), 1600)
-                    } catch {
-                      /* clipboard blocked */
-                    }
-                  })
+                  run(() =>
+                    void copy.settle('email', () =>
+                      navigator.clipboard.writeText('hello@roshankhatri.dev'),
+                    ),
+                  )
                 }
               >
                 <Copy aria-hidden />
-                {copied ? 'Copied to clipboard' : 'Copy email address'}
+                {copy.active === 'email' ? 'Copied to clipboard' : 'Copy email address'}
               </Command.Item>
               <Command.Item
                 value="open github source code"

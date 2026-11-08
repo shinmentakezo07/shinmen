@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { ArrowUpRight, Check, Clock, Copy, Mail, PenLine, Send } from 'lucide-react'
+import { useTransientFlag } from '@/lib/machine'
 import { SectionHead } from './SectionHead'
 
 /*
@@ -63,6 +64,9 @@ const CHANNELS = [
   },
 ] as const
 
+/* Which copy target just succeeded — one machine, so "address copied" and
+   "draft copied" can never both be true, and the 1.8s reset is owned by the
+   hook (cancelled on unmount) rather than a loose timeout. */
 type CopyKey = 'email' | 'memo'
 
 /** The reader's wall clock, re-checked every minute so it never spoils. */
@@ -91,14 +95,12 @@ const CRIB = [
 ]
 
 export function Contact() {
-  const [copied, setCopied] = useState<CopyKey | null>(null)
+  const copy = useTransientFlag<CopyKey>(1800)
+  const copied = copy.active
   const now = useClock()
 
-  async function copy(kind: CopyKey, text: string) {
-    if (!(await copyText(text))) return
-    setCopied(kind)
-    window.setTimeout(() => setCopied((c) => (c === kind ? null : c)), 1800)
-  }
+  /** Flash `kind` only if the clipboard write actually lands. */
+  const onCopy = (kind: CopyKey, text: string) => void copy.settle(kind, () => copyText(text))
 
   const crib = CRIB.map(([k, v]) => `- ${k}: ${v}`).join('\n')
   const memo = `To: ${EMAIL}\nSubject: Project enquiry\n\n${crib}\n`
@@ -151,7 +153,7 @@ export function Contact() {
             </a>
             <button
               type="button"
-              onClick={() => copy('email', EMAIL)}
+              onClick={() => onCopy('email', EMAIL)}
               className="u-link label text-fg-soft transition-colors hover:text-fg"
             >
               {copied === 'email' ? 'Copied' : 'Copy address'}
@@ -193,7 +195,7 @@ export function Contact() {
                     <div className="contact-channel is-email group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4">
                       <button
                         type="button"
-                        onClick={() => copy('email', c.value)}
+                        onClick={() => onCopy('email', c.value)}
                         className="contact-channel-body col-span-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-4 text-left sm:gap-4"
                         aria-label={copied === 'email' ? 'Email address copied' : `Copy email address ${c.value}`}
                       >
@@ -271,7 +273,7 @@ export function Contact() {
                 </a>
                 <button
                   type="button"
-                  onClick={() => copy('memo', memo)}
+                  onClick={() => onCopy('memo', memo)}
                   className="contact-memo-copy label flex items-center gap-1.5"
                   aria-pressed={copied === 'memo'}
                 >

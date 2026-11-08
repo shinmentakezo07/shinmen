@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, ArrowLeft, Check, Copy, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useTransientFlag } from '@/lib/machine'
 import { getProject, projectHue, type ProjectMeta } from '@/lib/projects'
 
 /*
@@ -150,17 +151,11 @@ function MastheadMark() {
 /* ── Masthead contact line, with copy-to-clipboard on the address ─────── */
 
 function ContactLine() {
-  const [copied, setCopied] = useState(false)
+  const copy = useTransientFlag<'email'>(1600)
+  const copied = copy.active === 'email'
 
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(EMAIL)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1600)
-    } catch {
-      /* clipboard unavailable — the mailto link still works */
-    }
-  }
+  // Clipboard unavailable = no flash; the mailto link beside it still works.
+  const onCopy = () => void copy.settle('email', () => navigator.clipboard.writeText(EMAIL))
 
   return (
     <div className="flex items-center gap-1.5">
@@ -172,7 +167,7 @@ function ContactLine() {
       </dd>
       <button
         type="button"
-        onClick={copy}
+        onClick={onCopy}
         className="no-print ml-1 inline-flex size-6 items-center justify-center border border-line text-fg-muted transition-colors duration-[var(--dur-1)] hover:border-accent hover:text-accent"
         aria-label={copied ? 'Address copied' : 'Copy email address'}
       >

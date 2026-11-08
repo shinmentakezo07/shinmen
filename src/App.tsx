@@ -48,22 +48,19 @@ function ScrollToHash() {
   return null
 }
 
+/*
+  ── Palette: one machine, one key owner ────────────────────────────────────
+    eager → idle → open ⇄ closed      (closed = mounted, Radix keeps the exit)
+  The ⌘K listener used to live here and *also* toggle, while Radix's dialog
+  advertised ⌘K in its footer — two owners of one transition, so ⌘K pressed
+  while typing in another field could open the palette mid-sentence. The key
+  now belongs to the palette component alone; App only decides when to mount
+  the chunk (first intent, never on load).
+*/
 export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   // Mount the palette chunk on first intent (⌘K or the header button), not on load.
   const [paletteMounted, setPaletteMounted] = useState(false)
-
-  useEffect(() => {
-    const warm = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        setPaletteMounted(true)
-        setPaletteOpen((o) => !o)
-      }
-    }
-    document.addEventListener('keydown', warm)
-    return () => document.removeEventListener('keydown', warm)
-  }, [])
 
   const openPalette = () => {
     setPaletteMounted(true)
@@ -87,7 +84,7 @@ export default function App() {
         Skip to content
       </a>
 
-      <Header onOpenCommand={openPalette} />
+      <Header onOpenCommand={openPalette} paletteOpen={paletteOpen} />
 
       <main id="main" className="relative z-10">
         <MotionRoot>
@@ -106,7 +103,11 @@ export default function App() {
 
       {paletteMounted && (
         <Suspense fallback={null}>
-          <CommandMenu open={paletteOpen} onOpenChange={setPaletteOpen} />
+          <CommandMenu
+            open={paletteOpen}
+            onOpenChange={setPaletteOpen}
+            onFirstKey={() => setPaletteOpen(true)}
+          />
         </Suspense>
       )}
     </ThemeProvider>

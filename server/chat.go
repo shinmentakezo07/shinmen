@@ -50,29 +50,57 @@ type chatMessage struct {
 	Content string `json:"content"`
 }
 
+/*
+── The chat request machine ───────────────────────────────────────────────
+Each /api/chat request walks exactly one path, and every path logs the name of
+the state it ended in. Before this, the same information was encoded in a
+mix of status codes, a `degraded` flag, and silence, so "the model is down",
+"the model answered nonsense", and "we never called it" looked identical in
+the logs. The front end's console mirrors these names.
+
+	received → rejected(validation)
+	         → throttled(429)
+	         → live       (model answered)
+	         → fallback   (upstream failed or was never configured)
+*/
+const (
+	outcomeLive      = "live"      // the model answered
+	outcomeFallback  = "fallback"  // canned answer served (upstream down or unconfigured)
+	outcomeRejected  = "rejected"  // validation refused the body
+	outcomeThrottled = "throttled" // token bucket said no
+)
+
+// rejection wraps a refused body so the log names the outcome and the reason in
+// one line, instead of leaving "why was this 400?" to be inferred from prose.
+func (c *chatHandler) rejection(w http.ResponseWriter, reason string) {
+	c.logger.Printf("chat outcome=%s reason=%q", outcomeRejected, reason)
+	writeJSON(w, http.StatusBadRequest, errorResponse{reason})
+}
+
 func (c *chatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Message string `json:"message"`
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxChatBodyBytes))
 	if err := dec.Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{"invalid JSON body"})
+		c.rejection(w, "invalid JSON body")
 		return
 	}
 	var extra json.RawMessage
 	if err := dec.Decode(&extra); err != io.EOF {
-		writeJSON(w, http.StatusBadRequest, errorResponse{"invalid JSON body"})
+		c.rejection(w, "invalid JSON body")
 		return
 	}
 	message := strings.TrimSpace(req.Message)
 	if n := utf8.RuneCountInString(message); n < 1 || n > maxMessageChars {
-		writeJSON(w, http.StatusBadRequest, errorResponse{"message must be 1..2000 characters after trimming"})
+		c.rejection(w, "message must be 1..2000 characters after trimming")
 		return
 	}
 
 	// Rate limit only well-formed requests; malformed bodies are cheap to reject.
 	if !c.limiter.allow(clientIP(r)) {
 		w.Header().Set("Retry-After", "6")
+		c.logger.Printf("chat outcome=%s", outcomeThrottled)
 		writeJSON(w, http.StatusTooManyRequests, errorResponse{"rate limit exceeded; try again shortly"})
 		return
 	}
@@ -80,10 +108,13 @@ func (c *chatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if c.upstreamURL != "" && c.apiKey != "" {
 		reply, err := c.upstream(r.Context(), message)
 		if err == nil {
+			c.logger.Printf("chat outcome=%s", outcomeLive)
 			writeJSON(w, http.StatusOK, chatResponse{Reply: reply})
 			return
 		}
-		c.logger.Printf("chat upstream failed, using canned answer: %v", err)
+		c.logger.Printf("chat outcome=%s reason=%q err=%v", outcomeFallback, "upstream failure", err)
+	} else {
+		c.logger.Printf("chat outcome=%s reason=%q", outcomeFallback, "not configured")
 	}
 	writeJSON(w, http.StatusOK, chatResponse{Reply: cannedAnswer(message), Degraded: true})
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Command as CommandIcon, Moon, Sun } from 'lucide-react'
+import { useTransientFlag } from '@/lib/machine'
 import { useTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
@@ -39,7 +40,15 @@ function useActiveSection(enabled: boolean) {
   return current
 }
 
-/** Reading progress: a spectrum hairline under the sticky header. */
+/**
+ * Reading progress: a spectrum hairline under the sticky header.
+ *
+ * Refinement loop, stated: scroll settles → samples are taken on the next two
+ * frames → the hairline is declared settled. Late images and font swaps change
+ * the document height *without* firing an event, and the earlier version
+ * only listened to scroll/resize, so the bar could disagree with the page
+ * until the next scroll. Three passes, each a rAF, are bounded and cheap.
+ */
 function ScrollProgress() {
   const bar = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -50,15 +59,22 @@ function ScrollProgress() {
       const p = max > 0 ? Math.min(1, window.scrollY / max) : 0
       if (bar.current) bar.current.style.transform = `scaleX(${p})`
     }
+    const settle = () => {
+      update()
+      requestAnimationFrame(() => requestAnimationFrame(update))
+    }
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(update)
     }
-    update()
+    settle()
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll)
+    window.addEventListener('load', settle)
+    void document.fonts?.ready.then(settle)
     return () => {
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
+      window.removeEventListener('load', settle)
       if (raf) cancelAnimationFrame(raf)
     }
   }, [])
@@ -89,11 +105,50 @@ export function Wordmark({ className }: { className?: string }) {
   )
 }
 
-export function Header({ onOpenCommand }: { onOpenCommand: () => void }) {
-  const { theme, toggle } = useTheme()
+export function Header({
+  onOpenCommand,
+  paletteOpen = false,
+}: {
+  onOpenCommand: () => void
+  paletteOpen?: boolean
+}) {
+  const { theme, source, toggle, reset } = useTheme()
   const { pathname } = useLocation()
   const onHome = pathname === '/'
   const current = useActiveSection(onHome)
+  // Press timestamps are bookkeeping, not rendered state — a ref, not a queue
+  // array in useState.
+  const presses = useRef<number[]>([])
+  const hint = useTransientFlag<'system'>(3200)
+
+  /**
+   * Theme button, two affordances in one:
+   *   · click / Enter / Space — flip the appearance (one-press action);
+   *   · double click, or the visible "⇄ OS" chip — hand control back to the
+   *     operating system (only offered once a choice is pinned).
+   * The mode and who owns it are henceforth stated in the button's name.
+   */
+  const nextTheme = theme === 'light' ? 'dark' : 'light'
+  const themeLabel =
+    source === 'system'
+      ? `Switch to ${nextTheme} mode (following your system)`
+      : `Switch to ${nextTheme} mode (pinned)`
+
+  const onThemePress = () => {
+    toggle()
+    if (source === 'user') {
+      // Second deliberate press within the window → back to the OS.
+      const now = Date.now()
+      const recent = presses.current.filter((t) => now - t < 450)
+      if (recent.length > 0) {
+        reset()
+        presses.current = []
+        hint.flash('system')
+        return
+      }
+      presses.current = [now]
+    }
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur-md">
@@ -134,22 +189,49 @@ export function Header({ onOpenCommand }: { onOpenCommand: () => void }) {
             onClick={onOpenCommand}
             className="label flex items-center gap-2 border border-line px-2.5 py-1.5 transition-colors hover:border-line-strong hover:text-fg"
             aria-label="Open command menu"
+            aria-expanded={paletteOpen}
+            aria-keyshortcuts="Meta+K Control+K"
           >
             <CommandIcon className="size-3.5" aria-hidden />
             <span className="hidden sm:inline">{isMac ? '⌘K' : 'Ctrl K'}</span>
           </button>
 
-          <button
-            onClick={toggle}
-            className="ml-1 flex size-8 items-center justify-center border border-line transition-colors hover:border-line-strong hover:text-accent"
-            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-          >
-            {theme === 'light' ? (
-              <Moon className="size-4" aria-hidden />
-            ) : (
-              <Sun className="size-4" aria-hidden />
+          <div className="relative ml-1 flex items-center">
+            <button
+              onClick={onThemePress}
+              className="flex size-8 items-center justify-center border border-line transition-colors hover:border-line-strong hover:text-accent"
+              aria-label={themeLabel}
+              title={themeLabel}
+            >
+              {theme === 'light' ? (
+                <Moon className="size-4" aria-hidden />
+              ) : (
+                <Sun className="size-4" aria-hidden />
+              )}
+            </button>
+            {/* Ownership is part of the state: once pinned, the way back to
+                following the OS is visible, not just a documented double-click. */}
+            {source === 'user' && (
+              <button
+                onClick={() => {
+                  reset()
+                  hint.flash('system')
+                }}
+                className="label ml-1 hidden h-8 items-center border border-transparent px-1 text-[0.5rem] text-fg-muted transition-colors hover:text-accent sm:flex"
+                aria-label="Follow the system appearance again"
+                title="Follow the system appearance again"
+              >
+                ⇄ OS
+              </button>
             )}
-          </button>
+            <span
+              className="label pointer-events-none absolute right-0 top-full mt-2 whitespace-nowrap bg-fg px-2 py-1 text-[0.5rem] text-bg transition-opacity duration-[var(--dur-1)]"
+              style={{ opacity: hint.active ? 1 : 0 }}
+              role="status"
+            >
+              Following system appearance
+            </span>
+          </div>
         </div>
       </div>
     </header>

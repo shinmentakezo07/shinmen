@@ -34,6 +34,14 @@ type githubPayload struct {
 	CachedAt              string       `json:"cachedAt"`
 }
 
+// cachedPayload is the cache's own shape: a payload that has been through a
+// successful fetch and a stamp. Modeling it separately means a concurrent
+// waiter can only ever observe a payload whose header fields are complete,
+// instead of sharing a fetch-in-progress struct and trusting the timing.
+type cachedPayload struct {
+	githubPayload
+}
+
 // githubService caches the GitHub profile for ttl and collapses concurrent
 // refreshes into a single upstream fetch (single-flight). On upstream failure
 // it serves the stale cache, if any, with its original cachedAt.
@@ -46,7 +54,7 @@ type githubService struct {
 	logger *log.Logger
 
 	mu       sync.Mutex
-	cached   *githubPayload
+	cached   *cachedPayload
 	cachedAt time.Time
 	inflight chan struct{}
 	fetchErr error
@@ -65,7 +73,7 @@ func (g *githubService) handle(w http.ResponseWriter, r *http.Request) {
 func (g *githubService) get(ctx context.Context) (*githubPayload, error) {
 	g.mu.Lock()
 	if g.cached != nil && g.now().Sub(g.cachedAt) < g.ttl {
-		p := g.cached
+		p := &g.cached.githubPayload
 		g.mu.Unlock()
 		return p, nil
 	}
@@ -82,7 +90,7 @@ func (g *githubService) get(ctx context.Context) (*githubPayload, error) {
 		p, err := g.cached, g.fetchErr
 		g.mu.Unlock()
 		if p != nil {
-			return p, nil // fresh or stale-on-failure
+			return &p.githubPayload, nil // fresh or stale-on-failure
 		}
 		return nil, err
 	}
@@ -98,7 +106,7 @@ func (g *githubService) get(ctx context.Context) (*githubPayload, error) {
 	if err == nil {
 		at := g.now()
 		p.CachedAt = at.UTC().Format(time.RFC3339)
-		g.cached = p
+		g.cached = &cachedPayload{githubPayload: *p}
 		g.cachedAt = at
 	}
 	g.inflight = nil
@@ -109,7 +117,7 @@ func (g *githubService) get(ctx context.Context) (*githubPayload, error) {
 	if err != nil {
 		if stale != nil {
 			g.logger.Printf("github fetch failed, serving stale cache: %v", err)
-			return stale, nil
+			return &stale.githubPayload, nil
 		}
 		return nil, err
 	}

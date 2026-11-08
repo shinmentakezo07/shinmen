@@ -1,6 +1,7 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, type CSSProperties } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import { getGithubStats, type GithubStats, type Repo } from '@/lib/api'
+import { useTransitionState } from '@/lib/machine'
 import { SectionHead } from './SectionHead'
 
 /*
@@ -124,18 +125,56 @@ function RepoStrip({ repos }: { repos: Repo[] }) {
   )
 }
 
+/*
+  ── The GitHub panel's fetch machine ───────────────────────────────────
+      loading ──ok──▶ live
+      loading ──fail──▶ offline        (API offline is fine — the section reads)
+  "Loading" used to be rendered as "offline" because stats === null meant both
+  "not yet" and "failed". The two are now separate states, so the reader sees
+  "api · connecting" for the half-second it is actually true, and only a real
+  failure claims the endpoint is down.
+*/
+interface GithubPanelState {
+  status: 'loading' | 'live' | 'offline'
+  stats: GithubStats | null
+}
+
+type GithubPanelEvent =
+  | { type: 'ok'; stats: GithubStats }
+  | { type: 'fail' }
+
+function githubPanelReducer(state: GithubPanelState, event: GithubPanelEvent): GithubPanelState {
+  if (state.status !== 'loading') return state
+  switch (event.type) {
+    case 'ok':
+      return { status: 'live', stats: event.stats }
+    case 'fail':
+      return { status: 'offline', stats: null }
+    default: {
+      const unhandled: never = event
+      return unhandled
+    }
+  }
+}
+
 export function About() {
-  const [stats, setStats] = useState<GithubStats | null>(null)
+  const [panel, dispatch] = useTransitionState<GithubPanelState, GithubPanelEvent>(
+    { status: 'loading', stats: null },
+    githubPanelReducer,
+  )
+  const stats = panel.stats
 
   useEffect(() => {
+    // Guard the promise, not the request: getGithubStats takes no signal, and a
+    // late resolution must not dispatch into an unmounted section.
     let live = true
     getGithubStats()
-      .then((s) => live && setStats(s))
-      .catch(() => live && setStats(null)) // API offline is fine — the section still reads.
+      .then((s) => live && dispatch({ type: 'ok', stats: s }))
+      .catch(() => live && dispatch({ type: 'fail' })) // API offline is fine — the section still reads.
     return () => {
       live = false
     }
-  }, [])
+  }, [dispatch])
 
   return (
     <section
@@ -228,15 +267,44 @@ export function About() {
           <div className="border border-line bg-bg-raised">
             <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
               <span className="label text-[0.6rem]">Live from GitHub</span>
-              <span className="label flex items-center gap-1.5 text-[0.55rem]">
+              <span className="label flex items-center gap-1.5 text-[0.55rem]" aria-live="polite">
                 <span
                   className="inline-block size-1 rounded-full"
-                  style={{ background: stats ? 'var(--success)' : 'var(--fg-muted)' }}
+                  style={{
+                    background:
+                      panel.status === 'live'
+                        ? 'var(--success)'
+                        : panel.status === 'loading'
+                          ? 'var(--fg-muted)'
+                          : 'var(--accent)',
+                  }}
                   aria-hidden
                 />
-                {stats ? 'api · cached 10m' : 'api offline'}
+                {panel.status === 'live' && 'api · cached 10m'}
+                {panel.status === 'loading' && 'api · connecting'}
+                {panel.status === 'offline' && 'api offline'}
               </span>
             </div>
+
+            {panel.status === 'loading' && (
+              <div className="px-4 py-6" role="status">
+                {/* Static placeholder — no shimmer, so reduced motion needs no exemption. */}
+                <div className="grid grid-cols-3 divide-x divide-line border-b border-line pb-3" aria-hidden>
+                  {['w-10', 'w-8', 'w-8'].map((w, i) => (
+                    <div key={i} className="px-3">
+                      <div className="mb-2 h-1.5 w-10 bg-line" />
+                      <div className={`h-4 ${w} bg-line/70`} />
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2 pt-3" aria-hidden>
+                  {['w-full', 'w-4/5', 'w-3/5'].map((w) => (
+                    <div key={w} className={`h-2 ${w} bg-line/70`} />
+                  ))}
+                </div>
+                <span className="sr-only">Loading GitHub activity…</span>
+              </div>
+            )}
 
             {stats ? (
               <>
