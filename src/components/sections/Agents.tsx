@@ -1,44 +1,90 @@
-import { useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { CornerDownLeft, LoaderCircle } from 'lucide-react'
 import { sendChat } from '@/lib/api'
 import { SectionHead } from './SectionHead'
+import { useReducedMotion } from 'motion/react'
+import { cn } from '@/lib/utils'
 
 /*
   A small, honest assistant. It is a proxy to a model with a system prompt about
   Roshan — the point of the section is showing the *system* (a Go endpoint, a
   typed client, graceful degradation), not pretending the site is conscious.
-  If the API is offline it says so instead of inventing an answer.
+
+  The console is built to make that visible: the pipeline strip shows which path
+  an answer took (live model vs canned), each turn carries a provenance stamp,
+  and canned answers arrive as ghost-typed text so the fallback reads as a
+  fallback rather than a lie.
 */
 
 interface Turn {
+  id: number
   role: 'user' | 'assistant'
   text: string
   degraded?: boolean
 }
 
 const SUGGESTIONS = [
-  'What is Roshan working on now?',
-  'Show me the most technically interesting project.',
-  'Is he available for freelance work?',
+  { q: 'What is Roshan working on now?', intent: 'current' },
+  { q: 'Show me the most technically interesting project.', intent: 'projects' },
+  { q: 'Is he available for freelance work?', intent: 'availability' },
 ]
+
+/** Typed rate for a canned answer, in ms per tick of two runes. */
+const TYPE_MS = 9
+
+/**
+ * Reveals canned text as though it were arriving from a model, so the fallback
+ * reads as a fallback. Runs once per answer; reduced motion gets it whole.
+ */
+function CannedAnswer({ text, onProgress }: { text: string; onProgress: (n: number) => void }) {
+  const reduce = useReducedMotion()
+  // The parent's setter is stable state, not an event: hold it in a ref so a new
+  // closure each render cannot tear down and restart the interval mid-answer.
+  const report = useRef(onProgress)
+  report.current = onProgress
+
+  useEffect(() => {
+    if (reduce) {
+      report.current(text.length)
+      return
+    }
+    let i = 0
+    const id = window.setInterval(() => {
+      i += 2
+      const n = Math.min(i, text.length)
+      report.current(n)
+      if (n >= text.length) window.clearInterval(id)
+    }, TYPE_MS)
+    return () => window.clearInterval(id)
+  }, [text, reduce])
+
+  return null
+}
 
 export function Agents() {
   const [turns, setTurns] = useState<Turn[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [typed, setTyped] = useState<Record<number, number>>({})
   const inputRef = useRef<HTMLInputElement>(null)
+  const logRef = useRef<HTMLDivElement>(null)
+  const nextId = useRef(0)
 
   async function submit(text: string) {
     const q = text.trim()
     if (!q || busy) return
-    setTurns((t) => [...t, { role: 'user', text: q }])
+    const userTurn: Turn = { id: nextId.current++, role: 'user', text: q }
+    setTurns((t) => [...t, userTurn])
     setInput('')
     setBusy(true)
     setError(null)
     try {
       const res = await sendChat(q)
-      setTurns((t) => [...t, { role: 'assistant', text: res.reply, degraded: res.degraded }])
+      setTurns((t) => [
+        ...t,
+        { id: nextId.current++, role: 'assistant', text: res.reply, degraded: res.degraded },
+      ])
     } catch {
       setError('The assistant endpoint is not responding. The rest of the site is unaffected.')
     } finally {
@@ -46,6 +92,15 @@ export function Agents() {
       inputRef.current?.focus()
     }
   }
+
+  // Keep the newest turn in view without scrolling the page.
+  useEffect(() => {
+    const el = logRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [turns, busy])
+
+  const lastAssistant = [...turns].reverse().find((t) => t.role === 'assistant')
+  const mode = busy ? 'pending' : lastAssistant ? (lastAssistant.degraded ? 'canned' : 'live') : 'idle'
 
   return (
     <section
@@ -62,67 +117,177 @@ export function Agents() {
         note="Go proxy · model-backed, canned fallback"
       />
 
-      <div className="grid gap-8 py-12 md:grid-cols-[1fr_1.4fr] md:gap-16">
-        <div className="space-y-4">
-          <p className="text-0 text-fg-soft">
-            A small assistant that answers questions about my work from the same
-            source material as this site. It runs behind a Go endpoint I wrote,
-            with rate limiting and a cached fallback.
+      <div className="grid gap-10 py-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] md:gap-14">
+        <div>
+          <p className="max-w-[38ch] text-0 leading-relaxed text-fg-soft">
+            A small assistant that answers from the same source material as this
+            site — behind a Go endpoint I wrote, with rate limiting and a cached
+            fallback. When the model is unreachable it says so.
           </p>
-          <ul className="space-y-2">
-            {SUGGESTIONS.map((s) => (
-              <li key={s}>
-                <button
-                  onClick={() => submit(s)}
-                  className="w-full border border-line px-3 py-2 text-left font-mono text-[length:var(--step--1)] text-fg-muted transition-colors hover:border-accent hover:text-accent"
+
+          {/* Pipeline: the whole section's argument, stated as a strip */}
+          <ol className="mt-7 space-y-px border-y border-line">
+            {[
+              ['01', 'prompt', 'typed client', 'var(--hue-ts)'],
+              ['02', 'proxy', 'POST /api/chat · token bucket', 'var(--hue-go)'],
+              ['03', 'answer', 'model, else canned + flagged', 'var(--hue-agent)'],
+            ].map(([n, label, note, hue]) => (
+              <li key={n} className="flex items-baseline gap-3 py-2.5">
+                <span className="label text-[0.55rem] tabular">{n}</span>
+                <span
+                  className="font-mono text-[length:var(--step--1)] font-medium"
+                  style={{ color: hue }}
                 >
-                  {s}
+                  {label}
+                </span>
+                <span className="ml-1 h-px flex-1 bg-line" aria-hidden />
+                <span className="label text-[0.55rem] text-right">{note}</span>
+              </li>
+            ))}
+          </ol>
+
+          <p className="label mt-7 mb-3">Start from a question</p>
+          <ul className="space-y-1.5">
+            {SUGGESTIONS.map((s) => (
+              <li key={s.q}>
+                <button
+                  onClick={() => submit(s.q)}
+                  disabled={busy}
+                  className="group flex w-full items-baseline gap-3 border border-transparent px-2 py-1.5 text-left transition-colors duration-[var(--dur-1)] hover:border-line hover:bg-bg-raised disabled:opacity-40"
+                >
+                  <span
+                    className="font-mono text-[0.65rem] text-fg-muted transition-colors group-hover:text-accent"
+                    aria-hidden
+                  >
+                    ›
+                  </span>
+                  <span className="text-[length:var(--step--1)] leading-snug text-fg-soft transition-colors group-hover:text-fg">
+                    {s.q}
+                  </span>
+                  <span className="label ml-auto shrink-0 text-[0.5rem] text-fg-muted/70 transition-colors group-hover:text-accent">
+                    {s.intent}
+                  </span>
                 </button>
               </li>
             ))}
           </ul>
         </div>
 
-        <div className="flex min-h-[22rem] flex-col border border-line bg-bg-raised">
-          <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
-            <span className="label">Transcript</span>
-            <span className="label text-[0.6rem] text-fg-muted">
-              {turns.length === 0 ? 'Awaiting input' : `${turns.length} turns`}
+        {/* ── Console ─────────────────────────────────────────────────── */}
+        <div className="resume-console flex min-h-[24rem] flex-col border border-line bg-bg-raised">
+          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
+            <span className="flex items-center gap-2">
+              <span
+                className="resume-console-dot inline-block size-1.5 rounded-full"
+                data-mode={mode}
+                aria-hidden
+              />
+              <span className="label text-[0.6rem]">Transcript</span>
+            </span>
+            <span
+              className="label text-[0.6rem]"
+              style={mode === 'canned' ? { color: 'var(--accent)' } : undefined}
+              aria-live="polite"
+            >
+              {mode === 'idle' && 'awaiting input'}
+              {mode === 'pending' && 'generating…'}
+              {mode === 'live' && 'live model'}
+              {mode === 'canned' && 'canned fallback'}
             </span>
           </div>
 
-          <div className="flex-1 space-y-4 overflow-y-auto p-4" aria-live="polite">
+          <div
+            ref={logRef}
+            className="flex-1 space-y-5 overflow-y-auto p-4"
+            aria-live="polite"
+            aria-label="Conversation transcript"
+          >
             {turns.length === 0 && (
-              <p className="font-mono text-[length:var(--step--1)] text-fg-muted">
-                <span className="text-accent">›</span> Ask anything about the projects above.
+              <div className="font-mono text-[length:var(--step--1)] leading-relaxed text-fg-muted">
+                <p>
+                  <span className="text-accent">›</span> session ready
+                </p>
+                <p className="text-fg-muted/70">
+                  <span className="text-accent">›</span> ask about the projects above
+                  <span className="resume-caret" aria-hidden />
+                </p>
+
+                {/* Session spec instead of an empty well: what this thing is,
+                    stated in the same voice as the transcript. */}
+                <dl className="mt-6 grid grid-cols-[5rem_1fr] gap-x-4 gap-y-2 border-t border-line pt-4 text-[0.62rem] uppercase tracking-[0.1em]">
+                  {[
+                    ['endpoint', 'POST /api/chat'],
+                    ['limit', '10 / min · burst 5 per IP'],
+                    ['model', 'OpenAI-compatible, if configured'],
+                    ['fallback', 'canned + flagged degraded'],
+                  ].map(([k, v]) => (
+                    <div key={k} className="contents">
+                      <dt className="text-fg-muted/60">{k}</dt>
+                      <dd className="normal-case tracking-normal text-fg-soft">{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
+
+            {turns.map((t) =>
+              t.role === 'user' ? (
+                <div key={t.id} className="flex items-baseline gap-3">
+                  <span className="label shrink-0 text-[0.55rem]">You</span>
+                  <p className="text-0 leading-relaxed text-fg">{t.text}</p>
+                </div>
+              ) : (
+                <div key={t.id} className="resume-turn">
+                  <div className="flex items-baseline gap-3">
+                    <span className="label shrink-0 text-[0.55rem]" style={{ color: 'var(--hue-agent)' }}>
+                      RK
+                    </span>
+                    <div className="min-w-0">
+                      <p
+                        className={cn(
+                          'resume-answer whitespace-pre-wrap text-0 leading-relaxed',
+                          t.degraded ? 'text-fg-soft' : 'text-fg',
+                        )}
+                      >
+                        {t.degraded && typed[t.id] !== undefined
+                          ? t.text.slice(0, typed[t.id])
+                          : t.text}
+                        {t.degraded && typed[t.id] !== undefined && typed[t.id] < t.text.length && (
+                          <span className="resume-caret" aria-hidden />
+                        )}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="label text-[0.5rem]">
+                          {t.degraded ? 'canned · no model' : 'model · live'}
+                        </span>
+                        <span className="h-2.5 w-px bg-line" aria-hidden />
+                        <span className="label text-[0.5rem]">
+                          {t.degraded ? 'same source as case studies' : 'system prompt, no invention'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {t.degraded && (
+                    <CannedAnswer
+                      text={t.text}
+                      onProgress={(n) => setTyped((m) => (m[t.id] === n ? m : { ...m, [t.id]: n }))}
+                    />
+                  )}
+                </div>
+              ),
+            )}
+
+            {busy && (
+              <div className="flex items-baseline gap-3">
+                <span className="label shrink-0 text-[0.55rem]">RK</span>
+                <LoaderCircle className="size-3.5 animate-spin text-fg-muted" aria-label="Thinking" />
+              </div>
+            )}
+            {error && (
+              <p className="border-l-2 border-accent pl-3 text-[length:var(--step--1)] text-accent">
+                {error}
               </p>
             )}
-            {turns.map((t, i) => (
-              <div key={i} className="grid grid-cols-[3.5rem_1fr] gap-3">
-                <span className="label pt-0.5 text-[0.6rem]">{t.role === 'user' ? 'You' : 'RK'}</span>
-                <p
-                  className={
-                    t.role === 'user'
-                      ? 'text-0 text-fg'
-                      : 'whitespace-pre-wrap text-0 text-fg-soft'
-                  }
-                >
-                  {t.text}
-                  {t.degraded && (
-                    <span className="ml-2 font-mono text-[0.65rem] uppercase tracking-wider text-accent">
-                      [offline answer]
-                    </span>
-                  )}
-                </p>
-              </div>
-            ))}
-            {busy && (
-              <div className="grid grid-cols-[3.5rem_1fr] gap-3">
-                <span className="label pt-0.5 text-[0.6rem]">RK</span>
-                <LoaderCircle className="size-4 animate-spin text-fg-muted" aria-label="Thinking" />
-              </div>
-            )}
-            {error && <p className="text-0 text-accent">{error}</p>}
           </div>
 
           <form
@@ -140,10 +305,14 @@ export function Agents() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type a question…"
+              maxLength={2000}
               className="h-12 w-full bg-transparent font-mono text-[length:var(--step--1)] outline-none placeholder:text-fg-muted"
               disabled={busy}
               aria-label="Ask the assistant"
             />
+            <span className="label hidden shrink-0 text-[0.5rem] tabular sm:block" aria-hidden>
+              {input.length > 0 ? `${input.length}/2000` : '⏎'}
+            </span>
             <button
               type="submit"
               disabled={busy || !input.trim()}
