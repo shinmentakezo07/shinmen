@@ -25,6 +25,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const root = document.documentElement
     root.dataset.theme = theme
     root.style.colorScheme = theme
+    // Keep mobile browser chrome on the actual canvas: void black at night.
+    document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+      meta.setAttribute('content', theme === 'dark' ? '#000000' : '#F4F1EA')
+      meta.removeAttribute('media')
+    })
     try {
       localStorage.setItem(STORAGE_KEY, theme)
     } catch {

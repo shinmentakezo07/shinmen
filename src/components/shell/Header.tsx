@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Command as CommandIcon, Moon, Sun } from 'lucide-react'
 import { useTheme } from '@/lib/theme'
@@ -41,13 +41,14 @@ function useActiveSection(enabled: boolean) {
 
 /** Reading progress: a spectrum hairline under the sticky header. */
 function ScrollProgress() {
-  const [progress, setProgress] = useState(0)
+  const bar = useRef<HTMLDivElement>(null)
   useEffect(() => {
     let raf = 0
     const update = () => {
       raf = 0
       const max = document.documentElement.scrollHeight - window.innerHeight
-      setProgress(max > 0 ? Math.min(1, window.scrollY / max) : 0)
+      const p = max > 0 ? Math.min(1, window.scrollY / max) : 0
+      if (bar.current) bar.current.style.transform = `scaleX(${p})`
     }
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(update)
@@ -63,8 +64,9 @@ function ScrollProgress() {
   }, [])
   return (
     <div
+      ref={bar}
       className="spectrum-rule absolute inset-x-0 bottom-0 origin-left"
-      style={{ transform: `scaleX(${progress})` }}
+      style={{ transform: 'scaleX(0)' }}
       aria-hidden
     />
   )
