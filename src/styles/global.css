@@ -625,14 +625,26 @@
     animation: rk-draw var(--dur-4) var(--ease-out) 0.35s forwards;
   }
 
-  /* Primary CTA: ink block that floods vermilion left→right and inverts */
+  /* Primary CTA: ink block that floods vermilion left→right and inverts.
+     The hero reuses it with the ghost modifier for its secondary action. */
   .contact-cta {
     position: relative;
     overflow: hidden;
     isolation: isolate;
     background: var(--fg);
     color: var(--bg);
-    transition: color var(--dur-2) var(--ease-out);
+    transition:
+      color var(--dur-2) var(--ease-out),
+      border-color var(--dur-2) var(--ease-out);
+  }
+  .contact-cta.is-ghost {
+    background: transparent;
+    border-color: var(--line-strong);
+    color: var(--fg-soft);
+  }
+  .contact-cta.is-ghost:hover,
+  .contact-cta.is-ghost:focus-visible {
+    border-color: transparent;
   }
   .contact-cta::before {
     content: '';
@@ -933,6 +945,81 @@
     mask-image: radial-gradient(120% 90% at 20% 0%, black 30%, transparent 75%);
   }
 
+  /* ── Hero ─────────────────────────────────────────────────────────────
+     The masthead is a spec sheet: a rule, a title block, a terminal. The
+     ornament is one short vermilion bar that reports the page, and the only
+     IE note is that the drawing is vector ink, not an image. */
+
+  /* Status line: the availability dot gets a slow halo so it reads as a
+     reading, not a decoration. Reuses the contact pulse so the site has one
+     vocabulary for "open right now". */
+  .hero-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .hero-dot {
+    flex: none;
+    width: 0.375rem;
+    height: 0.375rem;
+    background: var(--success);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 16%, transparent);
+    animation: rk-pulse 2.8s var(--ease-in-out) infinite;
+  }
+
+  /* The title block's mark: a short rule in vermilion under the fixed header,
+     so the page opens with its own colour and the title has a measuring line. */
+  .hero-mark {
+    display: block;
+    width: 2.25rem;
+    height: 2px;
+    background: var(--accent);
+  }
+  @media (min-width: 48rem) {
+    .hero-mark {
+      width: 3rem;
+    }
+  }
+
+  /* Blueprint sheet: the grid fades toward the fold instead of stopping at
+     the section edge, so the backdrop reads as one continuous drawing. */
+  .hero-blueprint {
+    mask-image: radial-gradient(110% 80% at 25% 0%, black 25%, transparent 72%);
+  }
+
+  /* The session panel: hairline rule that draws across the top edge when the
+     replay finishes, and an inner top-light that lifts it off the paper. */
+  .hero-session {
+    position: relative;
+    background: var(--bg-raised);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--bg) 70%, transparent),
+      0 24px 60px -32px rgba(0, 0, 0, 0.45);
+  }
+  .hero-session::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: var(--accent);
+    transform-origin: left;
+    animation: rk-draw var(--dur-4) var(--ease-out) 1.15s forwards;
+    transform: scaleX(0);
+  }
+
+  /* Terminal log: a tinted well, so the panel header stays paper and the
+     transcript sits recessed like a real console buffer. */
+  .hero-log {
+    background: color-mix(in srgb, var(--bg-sunk) 70%, transparent);
+  }
+
+  /* Lines land as whole rows (no half-drawn text) and keep a left edge of
+     colour that the pointer can find. */
+  .hero-log .term-line {
+    padding-inline-start: 0.5rem;
+    border-inline-start: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  }
+
   /* Terminal replay: lines land in order, then stop */
   .term-line {
     animation: rk-term-in 160ms var(--ease-out) both;
@@ -1015,6 +1102,13 @@
   }
   .term-cursor::after {
     animation: none;
+  }
+  .hero-dot,
+  .hero-session::before {
+    animation: none;
+  }
+  .hero-session::before {
+    transform: scaleX(1);
   }
 }
 
