@@ -512,6 +512,44 @@
     }
   }
 
+  /* ── Toolbelt ──────────────────────────────────────────────────────────
+     Each tool owns a 2px spine in its subject hue; hover thickens the mark
+     and lights the agent fan-out dots, so the row answers before it is read. */
+
+  .toolbelt-keyline {
+    transform: scaleY(0.35);
+    transform-origin: top;
+    transition: transform var(--dur-3) var(--ease-out);
+  }
+  .group:hover .toolbelt-keyline {
+    transform: scaleY(1);
+  }
+
+  .toolbelt-chip {
+    border: 1px solid var(--line);
+    padding: 0.05rem 0.35rem;
+    line-height: 1.6;
+    transition: border-color var(--dur-2) var(--ease-out);
+  }
+
+  .toolbelt-dot {
+    transition:
+      box-shadow var(--dur-2) var(--ease-out),
+      transform var(--dur-2) var(--ease-out);
+  }
+  li:hover > .toolbelt-dot {
+    transform: scale(1.4);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--hue-agent) 22%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toolbelt-keyline,
+    .toolbelt-chip,
+    .toolbelt-dot {
+      transition: none;
+    }
+  }
+
   /* A hairline that runs the whole subject palette */
   .spectrum-rule {
     height: 2px;
