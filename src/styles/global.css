@@ -570,6 +570,297 @@
     }
   }
 
+  /* ── Contact ───────────────────────────────────────────────────────────
+     The closing section: an availability pulse, the ask set as a statement
+     with an italic vermilion word, a filled CTA that floods on hover, and a
+     channel ledger whose rows take their subject hue from --ch-hue. */
+
+  /* Availability dot: a resting green with a slow, quiet halo — it reports
+     a fact, it does not beg. */
+  .contact-pulse {
+    background: var(--success);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 16%, transparent);
+    animation: rk-pulse 2.8s var(--ease-in-out) infinite;
+  }
+
+  /* The statement: an oversized opening quote in the display face, sunk
+     behind the first line like a marque. */
+  .contact-statement {
+    position: relative;
+    margin: 0;
+    padding-left: 0.15em;
+  }
+  .contact-quote {
+    position: absolute;
+    top: -0.4em;
+    left: -0.12em;
+    font-family: var(--font-display);
+    font-size: calc(var(--step-6) * 0.9);
+    line-height: 1;
+    color: var(--section-accent);
+    opacity: 0.16;
+    pointer-events: none;
+    user-select: none;
+  }
+  [data-theme='dark'] .contact-quote {
+    opacity: 0.22;
+  }
+  .contact-em {
+    font-style: italic;
+    color: var(--accent);
+    position: relative;
+    white-space: nowrap;
+  }
+  /* A hand-drawn rule under the emphasised word, drawn once on view */
+  .contact-em::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0.02em;
+    height: 2px;
+    background: color-mix(in srgb, var(--accent) 55%, transparent);
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: rk-draw var(--dur-4) var(--ease-out) 0.35s forwards;
+  }
+
+  /* Primary CTA: ink block that floods vermilion left→right and inverts */
+  .contact-cta {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background: var(--fg);
+    color: var(--bg);
+    transition: color var(--dur-2) var(--ease-out);
+  }
+  .contact-cta::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--dur-3) var(--ease-out);
+  }
+  .contact-cta:hover,
+  .contact-cta:focus-visible {
+    color: var(--accent-ink);
+  }
+  .contact-cta:hover::before,
+  .contact-cta:focus-visible::before {
+    transform: scaleX(1);
+  }
+
+  /* Availability ledger tiles light their top edge on hover */
+  .contact-facts > div {
+    position: relative;
+    transition: background-color var(--dur-2) var(--ease-out);
+  }
+  .contact-facts > div::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: var(--section-accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--dur-3) var(--ease-out);
+  }
+  .contact-facts > div:hover {
+    background: var(--bg-raised);
+  }
+  .contact-facts > div:hover::before {
+    transform: scaleX(1);
+  }
+
+  /* Channel ledger: dotted row rules in the hue, wash and icon frame answer */
+  .contact-channels li + li {
+    border-top: 1px solid var(--line);
+  }
+  .contact-channel {
+    position: relative;
+    background-color: transparent;
+    transition: background-color var(--dur-2) var(--ease-out);
+  }
+  .contact-channel::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--ch-hue);
+    transform: scaleY(0);
+    transform-origin: top;
+    transition: transform var(--dur-3) var(--ease-out);
+  }
+  .contact-channel:hover,
+  .contact-channel:focus-within {
+    background-color: color-mix(in srgb, var(--ch-hue) 4%, transparent);
+  }
+  .contact-channel:hover::before,
+  .contact-channel:focus-within::before {
+    transform: scaleY(1);
+  }
+  .contact-channel-icon {
+    color: var(--ch-hue);
+    transition:
+      border-color var(--dur-2) var(--ease-out),
+      background-color var(--dur-2) var(--ease-out);
+  }
+  .contact-channel:hover .contact-channel-icon,
+  .contact-channel:focus-within .contact-channel-icon {
+    border-color: color-mix(in srgb, var(--ch-hue) 50%, var(--line));
+    background-color: color-mix(in srgb, var(--ch-hue) 8%, transparent);
+  }
+
+  /* Label over value: a small caps line and the address in mono */
+  .contact-channel-value {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    color: var(--fg);
+  }
+  .contact-channel-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .contact-channel-sub {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    letter-spacing: 0.02em;
+    color: var(--fg-muted);
+    /* Notes wrap rather than truncate: a cut-off promise is a broken claim. */
+    overflow: hidden;
+  }
+
+  .contact-channel-hint {
+    color: var(--fg-muted);
+    transition: color var(--dur-2) var(--ease-out);
+  }
+  .contact-channel:hover .contact-channel-hint,
+  .contact-channel:focus-within .contact-channel-hint {
+    color: var(--ch-hue);
+  }
+
+  /* Corner tile: the arrow sits in a hairline square that floods with hue */
+  .contact-channel-tile {
+    position: relative;
+    display: flex;
+    width: 2.25rem;
+    height: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    color: var(--fg-muted);
+    transition:
+      color var(--dur-2) var(--ease-out),
+      border-color var(--dur-2) var(--ease-out);
+  }
+  .contact-channel-tile::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--ch-hue);
+    transform: scaleY(0);
+    transform-origin: bottom;
+    transition: transform var(--dur-2) var(--ease-out);
+  }
+  .contact-channel:hover .contact-channel-tile,
+  .contact-channel:focus-within .contact-channel-tile {
+    color: var(--accent-ink);
+    border-color: var(--ch-hue);
+  }
+  .contact-channel:hover .contact-channel-tile::before,
+  .contact-channel:focus-within .contact-channel-tile::before {
+    transform: scaleY(1);
+  }
+
+  /* Email row is a button + a tile; the button is a grid of its own */
+  .contact-channel-body {
+    border-radius: 0;
+  }
+
+  /* Memo block: a recessed instrument, hairline edge, no rounding */
+  .contact-memo {
+    border-top: 1px solid var(--line);
+    background: var(--bg-sunk);
+    padding: 1rem 0.75rem 0.75rem;
+    transition: border-color var(--dur-2) var(--ease-out);
+  }
+  @media (min-width: 48rem) {
+    .contact-memo {
+      padding: 1rem;
+    }
+  }
+  .contact-memo:hover {
+    border-top-color: var(--line-strong);
+  }
+  .contact-crib {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .contact-crib li + li {
+    border-top: 1px dotted var(--line);
+  }
+  .contact-memo-copy {
+    border: 1px solid var(--line);
+    padding: 0.2rem 0.5rem;
+    color: var(--fg-soft);
+    cursor: pointer;
+    transition:
+      border-color var(--dur-2) var(--ease-out),
+      color var(--dur-2) var(--ease-out),
+      background-color var(--dur-2) var(--ease-out);
+  }
+  .contact-memo-copy:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-quiet);
+  }
+
+  /* Wall clock: the one live reading, set quiet */
+  .contact-local {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.4rem;
+    color: var(--fg-soft);
+  }
+
+  @keyframes rk-draw {
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .contact-pulse,
+    .contact-em::after {
+      animation: none;
+    }
+    .contact-em::after {
+      transform: scaleX(1);
+    }
+    .contact-cta::before,
+    .contact-channel::before,
+    .contact-channel-tile::before,
+    .contact-channel-icon,
+    .contact-facts > div::before,
+    .contact-channel-hint,
+    .contact-memo-copy {
+      transition: none;
+    }
+  }
+
   /* A hairline that runs the whole subject palette */
   .spectrum-rule {
     height: 2px;
