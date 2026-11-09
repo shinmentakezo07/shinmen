@@ -95,7 +95,7 @@ export function Wordmark({ className }: { className?: string }) {
     <Link
       to="/"
       className={cn('group inline-flex items-baseline gap-2', className)}
-      aria-label="Roshan Khatri, home"
+      aria-label="Roshan Khatri, engineer — home"
     >
       <span className="font-display text-[1.35rem] leading-none tracking-tight">Roshan&nbsp;Khatri</span>
       <span className="label hidden text-[0.55rem] transition-colors group-hover:text-accent sm:block">

@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowUpRight } from 'lucide-react'
 import { MDXProvider } from '@mdx-js/react'
 import { getProject, projects } from '@/lib/projects'
 import { mdxComponents } from '@/components/mdx/prose'
+import { MetricGrid } from '@/components/ui/metric-grid'
 import { pad } from '@/lib/utils'
 
 // One lazy component per MDX body — a case study only loads when visited.
@@ -74,14 +75,10 @@ export function CaseStudy() {
         </div>
 
         {project.metrics && project.metrics.length > 0 && (
-          <dl className="mt-10 grid grid-cols-1 gap-px border border-line bg-line sm:grid-cols-3">
-            {project.metrics.map((m) => (
-              <div key={m.label} className="bg-bg p-5">
-                <dt className="label mb-2">{m.label}</dt>
-                <dd className="font-mono text-4 tabular leading-none text-fg">{m.value}</dd>
-              </div>
-            ))}
-          </dl>
+          <MetricGrid
+            className="mt-10 [&_.metric-cell]:bg-bg [&_.metric-cell]:p-5"
+            items={project.metrics.map((m) => ({ label: m.label, value: m.value, lead: true }))}
+          />
         )}
       </header>
 

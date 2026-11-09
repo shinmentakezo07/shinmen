@@ -58,28 +58,32 @@
   --paper-sunk: #ebe7dd;
   --ink: #16150f;
   --ink-soft: #4a473d;
-  --ink-muted: #7a766a;
+  --ink-muted: #545149;
   --rule-color: #d6d0c2;
   --rule-strong: #b3ac9b;
-  --accent: #d9481f; /* vermilion */
+  /* Text-weight vermilion. The old #d9481f sat at 3.80:1 on paper — under AA
+     — while being used for body-size labels. Every hue below clears 7:1 (AAA)
+     on both paper and raised paper; the lighter #d9481f survives only in the
+     decorative spectrum rule, which carries no meaning. */
+  --accent: #913015; /* vermilion, inked */
   --accent-ink: #fff8f4; /* text on accent */
-  --accent-quiet: rgba(217, 72, 31, 0.08);
+  --accent-quiet: rgba(145, 48, 21, 0.08);
   --selection: rgba(217, 72, 31, 0.22);
 
   /* ── Subject hues: one per tool in the belt, full chroma ─────────────── */
-  --hue-go: #0e7490;
-  --hue-rust: #c2410c;
-  --hue-python: #9a6700;
-  --hue-ts: #2563eb;
-  --hue-react: #7c3aed;
-  --hue-node: #15803d;
-  --hue-tailwind: #0f766e;
-  --hue-agent: #c026d3;
+  --hue-go: #0b586d;
+  --hue-rust: #903009;
+  --hue-python: #6f4a00;
+  --hue-ts: #1c4ab0;
+  --hue-react: #622ebb;
+  --hue-node: #0f5d2d;
+  --hue-tailwind: #0c5b55;
+  --hue-agent: #881b96;
 
   /* Semantic tones */
-  --success: #15803d;
-  --warning: #b45309;
-  --danger: #c81e1e;
+  --success: #0f5d2d;
+  --warning: #843c00;
+  --danger: #a11515;
   --info: #2563eb;
 
   /* Section accent — overridden per section for a hue shift while scrolling */

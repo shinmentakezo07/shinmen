@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { ArrowUpRight, Check, Clock, Copy, Mail, PenLine, Send } from 'lucide-react'
 import { useTransientFlag } from '@/lib/machine'
+import { MetricGrid } from '@/components/ui/metric-grid'
 import { SectionHead } from './SectionHead'
 
 /*
@@ -142,7 +143,7 @@ export function Contact() {
           <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-4">
             <a
               href={MAILTO}
-              className="contact-cta group inline-flex h-12 items-center gap-3 px-6 font-mono text-[length:var(--step--1)] uppercase tracking-[0.14em]"
+              className="cta-fill group relative isolate inline-flex h-12 items-center gap-3 overflow-hidden px-6 font-mono text-[length:var(--step--1)] uppercase tracking-[0.14em]"
             >
               <Send className="relative size-4" aria-hidden />
               <span className="relative">Start a conversation</span>
@@ -166,18 +167,14 @@ export function Contact() {
           </div>
 
           {/* Availability ledger — the section's claims as a spec sheet */}
-          <dl className="contact-facts mt-12 grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-3">
-            {[
-              ['Based in', 'Kathmandu, NP'],
-              ['Time zone', 'UTC+5:45'],
-              ['Engagements', '2–3 per year'],
-            ].map(([k, v]) => (
-              <div key={k} className="bg-bg p-4">
-                <dt className="label mb-1.5">{k}</dt>
-                <dd className="font-mono text-[length:var(--step--1)] text-fg">{v}</dd>
-              </div>
-            ))}
-          </dl>
+          <MetricGrid
+            className="contact-facts mt-12 [&_.metric-cell]:bg-bg [&_.metric-cell]:p-4"
+            items={[
+              { label: 'Based in', value: 'Kathmandu, NP' },
+              { label: 'Time zone', value: 'UTC+5:45' },
+              { label: 'Engagements', value: '2–3 per year' },
+            ]}
+          />
         </div>
 
         {/* ── Channels, memo, clock ───────────────────────────────── */}

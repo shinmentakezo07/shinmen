@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, ArrowLeft, Check, Copy, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { MetricGrid } from '@/components/ui/metric-grid'
 import { useTransientFlag } from '@/lib/machine'
 import { getProject, projectHue, type ProjectMeta } from '@/lib/projects'
 
@@ -67,12 +68,14 @@ const SECTIONS = [
   { id: 'resume-craft', label: 'Method' },
 ] as const
 
-/** Positions where a case-study metric is duplicated in a résumé bullet. */
-const HIGHLIGHT: Record<string, string[]> = {
-  atlas: ['340ms p95', '99.97% uptime'],
-  sift: ['42ms median', 'zero bytes'],
-  ledger: ['$2.1M', 'zero unbalanced'],
+/** Which delegate ran the build, per engagement — a record, not a ranking. */
+const DELEGATE: Record<string, string> = {
+  atlas: 'Claude Code + Codex',
+  sift: 'Claude Code',
+  ledger: 'Codex',
 }
+
+const delegateFor = (slug: string) => DELEGATE[slug] ?? 'a reviewed agent session'
 
 /** The second bullet per engagement — what the summary does not already say. */
 const BEATS: Record<string, string> = {
@@ -174,28 +177,6 @@ function ContactLine() {
         {copied ? <Check className="size-3" aria-hidden /> : <Copy className="size-3" aria-hidden />}
       </button>
     </div>
-  )
-}
-
-/* ── Bullet copy: the figures that also appear in the case study get a
-   resting hairline underline in the entry hue, so the numbers a recruiter
-   scans are the ones that trace to a published claim. ─────────────────── */
-
-function Highlighted({ text, marks }: { text: string; marks: string[] }) {
-  const re = new RegExp(`(${marks.map((m) => m.replace(/[$.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`)
-  const parts = text.split(re)
-  return (
-    <>
-      {parts.map((part, i) =>
-        marks.includes(part) ? (
-          <mark key={i} className="resume-mark">
-            {part}
-          </mark>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
-    </>
   )
 }
 
@@ -442,7 +423,7 @@ export function Resume() {
                       </div>
 
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                           <h3 className="text-2">{p.client}</h3>
                           <p className="resume-role font-mono text-[length:var(--step--1)] text-fg-muted">
                             {p.role}
@@ -451,23 +432,15 @@ export function Resume() {
 
                         {/* Headline figure: the one number that carries the entry */}
                         {p.metrics && p.metrics.length > 0 && (
-                          <dl className="mt-4 flex flex-wrap items-end gap-x-8 gap-y-3 border-y border-line py-3">
-                            {p.metrics.map((mtr, j) => (
-                              <div key={mtr.label}>
-                                <dt className="label mb-1 text-[0.58rem]">{mtr.label}</dt>
-                                <dd
-                                  className={
-                                    j === 0
-                                      ? 'font-mono text-2 tabular leading-none'
-                                      : 'font-mono text-0 tabular leading-none text-fg-soft'
-                                  }
-                                  style={j === 0 ? { color: hue } : undefined}
-                                >
-                                  {mtr.value}
-                                </dd>
-                              </div>
-                            ))}
-                          </dl>
+                          <MetricGrid
+                            className="resume-metrics mt-5"
+                            items={p.metrics.map((mtr, j) => ({
+                              label: mtr.label,
+                              value: mtr.value,
+                              lead: j === 0,
+                              hue,
+                            }))}
+                          />
                         )}
 
                         <ul className="mt-4 space-y-2">
@@ -479,7 +452,7 @@ export function Resume() {
                             />
                             <span>{p.summary}</span>
                           </li>
-                          {(HIGHLIGHT[p.slug] ?? []).length > 0 && (
+                          {BEATS[p.slug] && (
                             <li className="flex gap-3 text-0 leading-relaxed text-fg-soft">
                               <span
                                 className="resume-tick mt-[0.62em] h-px w-4 shrink-0"
@@ -487,10 +460,26 @@ export function Resume() {
                                 aria-hidden
                               />
                               <span>
-                                <Highlighted text={BEATS[p.slug]} marks={HIGHLIGHT[p.slug]} />
+                                {BEATS[p.slug]}
                               </span>
                             </li>
                           )}
+                          {/* This entry's own lane in the AI workflow: what ran,
+                              what it cost, who reviewed it. Nothing here is
+                              invented — the delegate is named, the gate is the
+                              one the method section describes. */}
+                          <li className="flex gap-3 text-0 leading-relaxed text-fg-soft">
+                            <span
+                              className="resume-tick mt-[0.62em] h-px w-4 shrink-0"
+                              style={{ background: hue }}
+                              aria-hidden
+                            />
+                            <span>
+                              Built with{' '}
+                              <span className="font-mono text-[0.92em] text-fg">{delegateFor(p.slug)}</span>;
+                              every diff read before merge, the review logged against the spec.
+                            </span>
+                          </li>
                         </ul>
 
                         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">

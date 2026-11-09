@@ -233,7 +233,7 @@ export function Agents() {
                 <button
                   onClick={() => submit(s.q)}
                   disabled={busy}
-                  className="group flex w-full items-baseline gap-3 border border-transparent px-2 py-1.5 text-left transition-colors duration-[var(--dur-1)] hover:border-line hover:bg-bg-raised disabled:opacity-40"
+                  className="group flex w-full items-baseline gap-3 border border-transparent px-2 py-1.5 text-left transition-colors duration-[var(--dur-1)] outline-none hover:border-line hover:bg-bg-raised focus-visible:border-accent focus-visible:bg-bg-raised disabled:opacity-40"
                 >
                   <span
                     className="font-mono text-[0.65rem] text-fg-muted transition-colors group-hover:text-accent"

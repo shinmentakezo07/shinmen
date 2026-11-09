@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
 import { projects, projectHue } from '@/lib/projects'
 import { Stagger, StaggerItem } from '@/components/ui/motion'
+import { MetricGrid } from '@/components/ui/metric-grid'
 import { SectionHead } from './SectionHead'
 import { pad } from '@/lib/utils'
 
@@ -35,10 +36,10 @@ export function Work() {
 
       <Stagger as="ul" className="work-list border-b border-line">
         {projects.map((p, i) => (
-          <StaggerItem as="li" key={p.slug} className="work-row" style={rowStyle(p.slug)}>
+          <StaggerItem as="li" key={p.slug} className="work-row group/row" style={rowStyle(p.slug)}>
             <Link
               to={`/work/${p.slug}`}
-              className="group relative grid grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-x-4 gap-y-4 py-8 md:grid-cols-[3rem_minmax(0,1fr)_12rem_auto] md:items-baseline md:gap-8 md:py-10"
+              className="group relative isolate grid grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-x-4 gap-y-4 py-8 md:grid-cols-[3rem_minmax(0,1fr)_12rem_auto] md:items-baseline md:gap-8 md:py-10"
             >
               {/* Hue keyline: a short vertical mark that grows to full row height on hover */}
               <span className="work-keyline" aria-hidden />
@@ -73,28 +74,21 @@ export function Work() {
                 </div>
               </div>
 
-              {/* Metrics: primary figure in the row hue, the rest as a quiet spec column */}
-              <dl className="col-start-2 row-start-2 flex flex-wrap items-end gap-x-8 gap-y-3 md:col-start-auto md:row-start-auto md:block md:space-y-4 md:border-l md:border-line md:pl-6">
-                {p.metrics?.slice(0, 2).map((mtr, j) => (
-                  <div key={mtr.label}>
-                    <dt className="label mb-1">{mtr.label}</dt>
-                    <dd
-                      className={
-                        j === 0
-                          ? 'font-mono text-3 tabular leading-none md:text-2'
-                          : 'font-mono text-0 tabular leading-none text-fg-soft'
-                      }
-                      style={j === 0 ? { color: 'var(--row-hue)' } : undefined}
-                    >
-                      {mtr.value}
-                    </dd>
-                  </div>
-                ))}
-                <div>
-                  <dt className="label mb-1">Year</dt>
-                  <dd className="font-mono text-0 tabular text-fg-muted">{p.year}</dd>
-                </div>
-              </dl>
+              {/* Metrics: primary figure leading in the row hue, then the spec column */}
+              <div className="col-start-2 row-start-2 md:col-start-auto md:row-start-auto">
+                <MetricGrid
+                  columns={2}
+                  className="work-metrics md:border-0 md:bg-transparent"
+                  items={[
+                    ...(p.metrics?.slice(0, 2) ?? []).map((mtr, j) => ({
+                      label: mtr.label,
+                      value: mtr.value,
+                      lead: j === 0,
+                    })),
+                    { label: 'Year', value: String(p.year) },
+                  ]}
+                />
+              </div>
 
               <span
                 className="relative col-start-3 row-start-1 flex size-10 items-center justify-center overflow-hidden border border-line text-fg-muted transition-colors duration-[var(--dur-2)] group-hover:border-accent group-hover:text-accent-ink md:col-start-auto md:row-start-auto"
